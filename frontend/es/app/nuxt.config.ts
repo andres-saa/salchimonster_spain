@@ -4,7 +4,7 @@ export default defineNuxtConfig({
 
   build: {
     transpile: ['i18n-iso-countries']
-  }
+  },
   
   modules: [
     '@nuxt/eslint',
