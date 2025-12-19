@@ -2,7 +2,7 @@
 import { getCountries, getCountryCallingCode } from 'libphonenumber-js'
 import isoCountries from 'i18n-iso-countries'
 
-// ✅ Importación ESTÁTICA (Vite/Rollup lo soporta bien)
+// Importación ESTÁTICA (Vite/Rollup lo soporta bien)
 import en from 'i18n-iso-countries/langs/en.json'
 import es from 'i18n-iso-countries/langs/es.json'
 
@@ -17,28 +17,27 @@ export type CountryOption = {
   dialDigits?: string // "57"
 }
 
-// ---- Registro de locales SOLO una vez ----
-let localesRegistered = false
+/**
+ * Registra locales SOLO una vez (y de forma idempotente)
+ * para que no reviente en SSR/HMR.
+ */
 function ensureLocalesRegistered() {
-  if (localesRegistered) return
-  isoCountries.registerLocale(en as any)
-  isoCountries.registerLocale(es as any)
-  localesRegistered = true
+  // i18n-iso-countries expone isRegistered(lang)
+  if (!isoCountries.isRegistered('en')) isoCountries.registerLocale(en as any)
+  if (!isoCountries.isRegistered('es')) isoCountries.registerLocale(es as any)
 }
 
-// ---- Normaliza cualquier locale raro a 'es' o 'en' ----
-// Ej: "es-CO" -> "es", "en-US" -> "en", "pt-BR" -> "es", "br" -> "es"
+/**
+ * Normaliza cualquier locale raro a 'es' o 'en'
+ * Ej: "es-CO" -> "es", "en-US" -> "en", "pt-BR" -> "es"
+ */
 export function normalizeLocale(input?: string): SupportedLocale {
   const raw = (input || '').toLowerCase().trim()
-
   if (raw.startsWith('en')) return 'en'
-  if (raw.startsWith('es')) return 'es'
-
-  // Cualquier otra cosa (pt, br, fr, etc) => fallback
   return 'es'
 }
 
-// ---- Cache para no recalcular la lista cada render ----
+// Cache para no recalcular la lista en cada render
 const cache: Record<SupportedLocale, CountryOption[] | null> = {
   es: null,
   en: null,
@@ -49,16 +48,24 @@ export function buildCountryOptions(localeLike: string = 'es'): CountryOption[] 
 
   const locale = normalizeLocale(localeLike)
 
-  // ✅ Devuelve cache si ya existe
   const cached = cache[locale]
   if (cached) return cached
 
   const codes = getCountries()
 
+  const collator = new Intl.Collator(locale, { sensitivity: 'base' })
+
   const opts: CountryOption[] = codes.map((code) => {
-    // ✅ OJO: aquí usamos locale ya normalizado ('es'|'en')
     const name = isoCountries.getName(code, locale) || code
-    const dial = '+' + getCountryCallingCode(code)
+
+    let dial = ''
+    try {
+      dial = '+' + getCountryCallingCode(code as any)
+    } catch {
+      // si algo raro pasa, no tumbes el render
+      dial = ''
+    }
+
     const flag = `https://flagcdn.com/w20/${code.toLowerCase()}.png`
 
     return {
@@ -66,12 +73,12 @@ export function buildCountryOptions(localeLike: string = 'es'): CountryOption[] 
       name,
       dialCode: dial,
       flag,
-      label: `${dial}  ${name}`,
-      dialDigits: dial.replace(/\D+/g, ''),
+      label: dial ? `${dial}  ${name}` : `${name}`,
+      dialDigits: dial ? dial.replace(/\D+/g, '') : '',
     }
   })
 
-  opts.sort((a, b) => a.name.localeCompare(b.name, locale))
+  opts.sort((a, b) => collator.compare(a.name, b.name))
 
   cache[locale] = opts
   return opts

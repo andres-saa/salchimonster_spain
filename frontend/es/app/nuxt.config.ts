@@ -3,11 +3,6 @@ export default defineNuxtConfig({
   compatibilityDate: '2025-07-15',
   devtools: { enabled: true },
 
-  // Mantén el transpile, ayuda a que Nuxt procese la librería
-  build: {
-    transpile: ['i18n-iso-countries']
-  },
-  
   modules: [
     '@nuxt/eslint',
     '@nuxt/image',
@@ -38,37 +33,34 @@ export default defineNuxtConfig({
     },
   },
 
-  // 👇 AQUÍ ESTÁ LA SOLUCIÓN MÁGICA 👇
-  vite: {
-    build: {
-      commonjsOptions: {
-        // Esto le dice al bundler: "Si ves un require() raro dentro de una librería,
-        // ignóralo y no rompas el servidor".
-        ignoreDynamicRequires: true
-      }
-    },
-    // Opcional: Ayuda a Vite a pre-optimizar la dependencia
-    optimizeDeps: {
-      include: ['i18n-iso-countries']
-    }
+  // ✅ Importante para i18n-iso-countries (evita líos CJS/ESM en SSR)
+  build: {
+    transpile: ['i18n-iso-countries'],
   },
-  // 👆 FIN DE LA SOLUCIÓN 👆
+
+  vite: {
+    // ✅ Fuerza a Vite/Nuxt a NO dejarlo como dependencia externa en SSR,
+    // así lo procesa y evita errores de require/exports
+    ssr: {
+      noExternal: ['i18n-iso-countries'],
+    },
+    // ✅ Opcional: pre-optimización en dev
+    optimizeDeps: {
+      include: ['i18n-iso-countries'],
+    },
+  },
 
   image: {
-    domains: [
-      'img.restpe.com', 
-      'backend.salchimonster.com',
-      'gestion.salchimonster.com' 
-    ],
+    domains: ['img.restpe.com', 'backend.salchimonster.com', 'gestion.salchimonster.com'],
     format: ['avif', 'webp'],
     quality: 75,
     screens: {
-      'xs': 320,
-      'sm': 640,
-      'md': 768,
-      'lg': 1024,
-      'xl': 1280,
-      'xxl': 1536
+      xs: 320,
+      sm: 640,
+      md: 768,
+      lg: 1024,
+      xl: 1280,
+      xxl: 1536,
     },
     densities: [1, 2],
     presets: {
@@ -76,8 +68,8 @@ export default defineNuxtConfig({
         modifiers: {
           loading: 'lazy',
           fit: 'cover',
-        }
-      }
-    }
-  }
+        },
+      },
+    },
+  },
 })
