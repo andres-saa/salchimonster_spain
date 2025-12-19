@@ -433,11 +433,61 @@ useHead(() => ({
 }))
 </script>
 
+
 <style scoped>
 .menu-page {
   min-height: 100vh;
+  /* background: #f3f4f6; */
   color: #111827;
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI',
+    sans-serif;
+
+}
+
+/* HERO (si lo quieres usar) */
+.menu-hero {
+  position: relative;
+  height: 220px;
+  width: 100%;
+  background-image:
+    linear-gradient(rgba(0, 0, 0, 0), rgba(0, 0, 0, 0.95)),
+    url('https://images.pexels.com/photos/4109087/pexels-photo-4109087.jpeg');
+  background-size: cover;
+  background-position: center;
+}
+
+.menu-hero__overlay {
+  position: absolute;
+  inset: 0;
+}
+
+.menu-hero__content {
+  position: relative;
+  z-index: 1;
+  max-width: 1200px;
+  margin: 0 auto;
+  height: 100%;
+  color: white;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 1.5rem;
+    
+}
+
+.menu-hero__title {
+  font-size: 2rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  margin: 0 0 0.5rem;
+  text-transform: none;
+}
+
+.menu-hero__subtitle {
+  margin: 0;
+  opacity: 0.8;
+  max-width: 480px;
+  font-size: 0.95rem;
 }
 
 /* CONTENIDO */
@@ -453,6 +503,7 @@ useHead(() => ({
   padding-bottom: 1.5rem;
   border-bottom: 1px solid #e5e7eb;
 }
+
 .menu-category-section:last-of-type {
   border-bottom: none;
   padding-bottom: 0;
@@ -468,7 +519,7 @@ useHead(() => ({
 .menu-category-section__title {
   font-size: 2rem;
   font-weight: 700;
-  margin: 1rem 0;
+  margin:1rem 0;
   text-transform: none;
 }
 
@@ -478,77 +529,74 @@ useHead(() => ({
   color: #6b7280;
 }
 
+ 
+
 /* GRID PRODUCTOS */
 .menu-category-section__grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
   gap: 0.9rem;
-  padding-bottom: 5rem;
+      padding-bottom: 5rem;
 }
 
-/* RESPONSIVE */
+/* RESPONSIVE ESCRITORIO */
+@media (min-width: 1024px) {
+  .menu-hero__title {
+    font-size: 2.4rem;
+  }
+}
+
+/* 📱 RESPONSIVE MÓVIL */
 @media (max-width: 768px) {
+  .menu-hero {
+    height: 180px;
+  }
+
+  .menu-hero__title {
+    font-size: 1.4rem;
+  }
+
+  .menu-hero__subtitle {
+    font-size: 0.8rem;
+  }
+
   .menu-content {
     padding: 0.5rem 0.5rem 1.5rem;
     margin-bottom: 1.5rem;
   }
+
   .menu-category-section {
     padding-top: 1.2rem;
     padding-bottom: 1rem;
   }
+
   .menu-category-section__title {
     font-size: 1.5rem;
   }
+
   .menu-category-section__grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 0.55rem;
   }
+
 }
 
+  
 .menu-background {
   min-height: 100vh;
+  /* Primero el degradado encima, luego la imagen */
   background-image:
     linear-gradient(
       to bottom,
       rgba(0, 0, 0, 0.596) 0,
-      rgb(255, 255, 255) 50vh,
+      rgb(255, 255, 255) 50vh, /* hasta 300px transparente */
       #ffffff 50vh 
     ),
     url('https://backend.salchimonster.com/read-photo-product/Ym5HMDik');
-  background-repeat: no-repeat;
-  background-size: 100%;
+    background-repeat: no-repeat;
+    background-size: 100%
+    ;
+   
 }
 
-/* ====================================
-   ESTILOS DEL LOADING (NUEVO)
-   ==================================== */
-.loading-container {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  height: 60vh; /* Altura suficiente para centrarlo visualmente */
-  width: 100%;
-}
-
-.spinner {
-  width: 50px;
-  height: 50px;
-  border: 5px solid rgba(255, 255, 255, 0.3);
-  border-radius: 50%;
-  border-top-color: #ffaa00; /* Color naranja Salchimonster */
-  animation: spin 1s ease-in-out infinite;
-  margin-bottom: 1rem;
-}
-
-.loading-text {
-  color: white;
-  font-size: 1.2rem;
-  font-weight: 600;
-  text-shadow: 0 2px 4px rgba(0,0,0,0.5);
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
 </style>
