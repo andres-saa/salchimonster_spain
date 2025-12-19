@@ -19,7 +19,7 @@ COPY .env_prod .env
 
 # 👇 LA CLAVE: Aumentamos el límite de memoria a 4GB (4096MB)
 # Node usará la RAM física y desbordará a la Swap si es necesario.
-ENV NODE_OPTIONS="--max-old-space-size=4096"
+ENV NODE_OPTIONS="--max-old-space-size=6144"
 
 RUN npm run build
 
