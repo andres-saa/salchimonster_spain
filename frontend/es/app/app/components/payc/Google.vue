@@ -358,6 +358,23 @@ const user = useUserStore()
 const siteStore = useSitesStore()
 const store = usecartStore()
 
+
+
+
+
+const generateUUID = () => {
+  // Intenta usar la nativa si existe y está disponible
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  // Fallback manual compatible con todos los navegadores
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+};
+
 // Datos Globales
 const uri_api_google = 'https://api.locations.salchimonster.com'
 const sitePaymentsComplete = ref([])
@@ -531,7 +548,7 @@ const handleSiteChange = async (newData) => {
   targetSiteName.value = site?.site_name || 'Nueva Sede'
 
   try {
-    const hash = crypto.randomUUID()
+    const hash =  generateUUID()
 
     // ✅ Importante:
     // - mandamos también coupon_ui + coupon_code para que la sede destino tenga con qué reintentar aplicar

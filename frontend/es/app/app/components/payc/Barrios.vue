@@ -569,13 +569,29 @@ watch(() => siteStore.location?.site?.site_id, async (newSiteId, oldSiteId) => {
   }
 })
 
+
+
+const generateUUID = () => {
+  // Intenta usar la nativa si existe y está disponible
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  // Fallback manual compatible con todos los navegadores
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+};
+
+
 // Función que empaqueta la data y redirecciona
 const handleSiteChangeRedirect = async (targetSite) => {
   isRedirecting.value = true
   targetSiteName.value = targetSite.site_name || 'Nueva Sede'
 
   try {
-    const hash = crypto.randomUUID()
+    const hash = generateUUID()
     
     // 1. Aplanamos y aseguramos el barrio (Neighborhood)
     const currentNb = siteStore.location.neigborhood || {}
