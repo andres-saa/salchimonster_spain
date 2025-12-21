@@ -13,7 +13,10 @@ export default defineNuxtConfig({
         options: {
             theme: {
                 preset: Aura
-            }
+            },
+            darkModeSelector: 'light',
+
+            
         },
         components: {
         include: ['Button', 'DataTable', 'Select']
