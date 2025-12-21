@@ -3,14 +3,8 @@ import { ref, watch, nextTick, onMounted, onBeforeUnmount, computed } from 'vue'
 import { useSitesStore } from '#imports'
 
 const props = defineProps({
-  categories: {
-    type: Array,
-    default: () => []
-  },
-  activeCategoryId: {
-    type: [Number, String, null], 
-    default: null
-  }
+  categories: { type: Array, default: () => [] },
+  activeCategoryId: { type: [Number, String, null], default: null }
 })
 
 const emit = defineEmits(['select-category'])
@@ -25,15 +19,13 @@ const isOpen = computed(() => {
   return st.status === 'open'
 })
 
-// ✅ 2. Scroll Logic Optimizada
+// ✅ 2. Scroll Logic
 const isPinned = ref(true)
 const lastScrollY = ref(0)
-const ticking = ref(false) // Para evitar exceso de llamadas (throttling simple)
+const ticking = ref(false)
 
 const handleScroll = () => {
   if (typeof window === 'undefined') return
-  
-  // Usamos requestAnimationFrame para sincronizar con el refresco de pantalla
   if (!ticking.value) {
     window.requestAnimationFrame(() => {
       performScrollLogic()
@@ -47,28 +39,21 @@ const performScrollLogic = () => {
   const currentY = window.scrollY || window.pageYOffset || 0
   const delta = currentY - lastScrollY.value
   
-  // Ignorar movimientos muy pequeños para evitar "temblores"
   if (Math.abs(delta) < 10) return 
 
-  // Si bajamos (delta > 0) y pasamos el umbral del header (> 60px), ocultamos
+  // Umbral más alto para evitar parpadeos
   if (delta > 0 && currentY > 60) {
     isPinned.value = false
   } else {
-    // Si subimos, mostramos
     isPinned.value = true
   }
-  
   lastScrollY.value = currentY
 }
 
-// ✅ 3. Calculamos la posición TOP dinámica
+// ✅ 3. Calculamos la posición TOP dinámica (Teletransporte)
 const categoriesBarTop = computed(() => {
-  // Caso A: Usuario bajando scroll (Header principal oculto -> Top 0)
-  if (!isPinned.value) return '0px'
-
-  // Caso B: Usuario arriba o subiendo (Header principal visible)
-  // Ajusta estos valores píxel-perfecto con la altura real de tu header
-  return isOpen.value ? '3.6rem' : '5.7rem'
+  if (!isPinned.value) return '0px' // Pegado arriba del todo
+  return isOpen.value ? '3.6rem' : '5.7rem' // En su posición original
 })
 
 const formatLabel = (str) => {
@@ -76,16 +61,12 @@ const formatLabel = (str) => {
   return s.charAt(0).toUpperCase() + s.slice(1)
 }
 
-const onClickCategory = (category) => {
-  emit('select-category', category)
-}
+const onClickCategory = (category) => emit('select-category', category)
 
 const centerActiveCategoryPill = () => {
   const container = containerRef.value
-  if (!container) return
-  const activeId = props.activeCategoryId
-  if (!activeId) return
-  const activeEl = container.querySelector(`[data-cat-pill-id="${activeId}"]`)
+  if (!container || !props.activeCategoryId) return
+  const activeEl = container.querySelector(`[data-cat-pill-id="${props.activeCategoryId}"]`)
   if (!activeEl) return
 
   const targetScrollLeft = activeEl.offsetLeft + activeEl.offsetWidth / 2 - container.clientWidth / 2
@@ -93,7 +74,7 @@ const centerActiveCategoryPill = () => {
 }
 
 watch(() => props.activeCategoryId, () => {
-  nextTick(() => { centerActiveCategoryPill() })
+  nextTick(() => centerActiveCategoryPill())
 })
 
 onMounted(() => {
@@ -113,7 +94,8 @@ onBeforeUnmount(() => {
 
 <template>
   <div 
-    class="menu-categories-bar" 
+    :key="isPinned"
+    class="menu-categories-bar fade-in-teleport"
     :style="{ top: categoriesBarTop }"
   >
     <div class="menu-categories-bar__scroll" ref="containerRef">
@@ -144,13 +126,28 @@ onBeforeUnmount(() => {
   background: #ffffff;
   border-bottom: 1px solid #e5e7eb;
   
-  /* MEJORA: Transición más rápida y suave (ease-in-out) */
-  transition: top 0.2s ease-in-out;
-  
-  /* MEJORA CRÍTICA: Hint para la GPU, evita saltos al hacer scroll */
-  will-change: top;
-  
+  /* IMPORTANTE: Eliminamos 'transition: top' para que no deslice. 
+     Solo dejamos transiciones de efectos visuales si fueran necesarios */
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+  will-change: opacity, transform;
+}
+
+/* CLASE PARA LA ANIMACIÓN DE TELETRANSPORTE 
+   Esta animación se ejecuta cada vez que cambia el :key (isPinned)
+*/
+.fade-in-teleport {
+  animation: teleportAppear 1s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+
+@keyframes teleportAppear {
+  0% {
+    opacity: 0;
+    transform: translateY(-5px) scale(0.98); /* Entra ligeramente desde arriba y un poco más pequeño */
+  }
+  50% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 .menu-categories-bar__scroll {
@@ -159,9 +156,7 @@ onBeforeUnmount(() => {
   display: flex;
   gap: 0.75rem;
   overflow-x: auto;
-  scrollbar-width: none; /* Firefox */
-  
-  /* Smooth scroll interno para cuando se centran las píldoras */
+  scrollbar-width: none;
   scroll-behavior: smooth;
 }
 .menu-categories-bar__scroll::-webkit-scrollbar { display: none; }
@@ -177,12 +172,9 @@ onBeforeUnmount(() => {
   font-size: 0.95rem;
   font-weight: 500;
   cursor: pointer;
-  /* Reducimos transición del hover para que se sienta más responsivo */
   transition: background-color 0.2s, color 0.2s, transform 0.1s;
   white-space: nowrap;
   flex-shrink: 0;
-  
-  /* Evitar selección de texto azul en móviles al tocar rápido */
   user-select: none; 
   -webkit-tap-highlight-color: transparent;
 }
@@ -205,7 +197,7 @@ onBeforeUnmount(() => {
 }
 
 .menu-categories-bar__item:active {
-  transform: translateY(0px); /* Efecto de click */
+  transform: translateY(0px);
 }
 
 .menu-categories-bar__item--active {

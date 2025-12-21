@@ -1,5 +1,5 @@
 <template>
-  <div>
+  <div class="vicio-root">
     <Transition name="fade">
       <div v-if="isRedirecting" class="redirect-overlay">
         <div class="redirect-content">
@@ -14,7 +14,7 @@
       </div>
     </Transition>
 
-    <!-- ✅ Clase que colapsa el mapa en móvil cuando ya hay selección -->
+    <!-- ✅ App-like shell: sin scroll global, todo ocurre dentro -->
     <div class="vicio-page" :class="{ 'is-map-collapsed': shouldCollapseMap }">
       <ClientOnly>
         <!-- ✅ Shell para animar el alto del mapa sin destruir Leaflet -->
@@ -115,24 +115,28 @@
             <Icon name="mdi:map-marker-check" size="1.4em" class="coverage-icon" />
             <h3 class="coverage-title">Resultado de búsqueda</h3>
           </div>
+
           <div class="coverage-body">
             <div class="coverage-row">
               <span class="coverage-label">Dirección:</span>
               <span class="coverage-value address-text">{{ coverageResult.formatted_address }}</span>
             </div>
+
             <div class="coverage-row">
               <span class="coverage-label">Sede más cercana:</span>
               <span class="coverage-value">
                 {{ coverageResult.nearest?.site?.site_name || 'N/A' }}
                 <small v-if="coverageResult.nearest">
-                  ({{ coverageResult.nearest.distance_km.toFixed(1) }} km)
+                  ({{ Number(coverageResult.nearest.distance_km || 0).toFixed(1) }} km)
                 </small>
               </span>
             </div>
+
             <div class="coverage-row highlight">
               <span class="coverage-label">Costo envío:</span>
               <span class="coverage-value price">{{ formatCOP(coverageResult.delivery_cost_cop) }}</span>
             </div>
+
             <div class="coverage-status-text" :class="coverageResult.nearest?.in_coverage ? 'text-ok' : 'text-fail'">
               {{ coverageResult.nearest?.in_coverage ? '✅ Cubrimos tu zona' : '❌ Fuera de zona de entrega' }}
             </div>
@@ -162,17 +166,21 @@
             <Icon name="mdi:home-map-marker" size="1.4em" class="coverage-icon" />
             <h3 class="coverage-title">Tu zona (Por Barrios)</h3>
           </div>
+
           <div class="coverage-body">
             <div class="coverage-row">
               <span class="coverage-label">Barrio:</span>
               <span class="coverage-value">{{ selectedNeighborhood?.name || '—' }}</span>
             </div>
+
             <div class="coverage-row highlight">
               <span class="coverage-label">Costo envío:</span>
               <span class="coverage-value price">{{ formatCOP(paramDeliveryPrice) }}</span>
             </div>
+
             <div class="coverage-status-text text-ok">✅ Listo para enviar</div>
           </div>
+
           <div class="coverage-actions">
             <Button
               class="btn-action btn-delivery"
@@ -187,7 +195,7 @@
           </div>
         </section>
 
-        <!-- LISTA SEDES -->
+        <!-- LISTA SEDES (✅ scroll interno, no global) -->
         <main class="stores-list">
           <article
             v-for="store in filteredStores"
@@ -211,7 +219,7 @@
 
               <p class="store-services">
                 <span v-for="(ot, index) in getAvailableOrderTypes(store.id)" :key="ot.id">
-                  {{ ot.name.toUpperCase() }}
+                  {{ String(ot.name || '').toUpperCase() }}
                   <span v-if="index < getAvailableOrderTypes(store.id).length - 1"> | </span>
                 </span>
               </p>
@@ -228,7 +236,7 @@
               </button>
             </div>
 
-            <button class="store-arrow">
+            <button class="store-arrow" type="button">
               <Icon name="mdi:chevron-right" size="1.6em" />
             </button>
           </article>
@@ -394,7 +402,7 @@
                   <span class="coverage-value">
                     {{ modalCoverageResult.nearest?.site?.site_name || 'N/A' }}
                     <small v-if="modalCoverageResult.nearest">
-                      ({{ modalCoverageResult.nearest.distance_km.toFixed(1) }} km)
+                      ({{ Number(modalCoverageResult.nearest.distance_km || 0).toFixed(1) }} km)
                     </small>
                   </span>
                 </div>
@@ -473,6 +481,39 @@ const isRedirecting = ref(false)
 const targetSiteName = ref('')
 
 /* =======================
+   ✅ App-like: bloquear scroll global + zoom del navegador
+   ======================= */
+const preventGesture = (e) => { try { e.preventDefault() } catch {} }
+const preventCtrlWheelZoom = (e) => {
+  // Desktop: Ctrl + wheel => zoom del navegador
+  if (e.ctrlKey) {
+    try { e.preventDefault() } catch {}
+  }
+}
+
+function lockPage() {
+  if (typeof window === 'undefined') return
+  document.documentElement.classList.add('no-global-scroll')
+  document.body.classList.add('no-global-scroll')
+  // iOS Safari (pinch)
+  window.addEventListener('gesturestart', preventGesture, { passive: false })
+  window.addEventListener('gesturechange', preventGesture, { passive: false })
+  window.addEventListener('gestureend', preventGesture, { passive: false })
+  // Desktop browser zoom
+  window.addEventListener('wheel', preventCtrlWheelZoom, { passive: false })
+}
+
+function unlockPage() {
+  if (typeof window === 'undefined') return
+  document.documentElement.classList.remove('no-global-scroll')
+  document.body.classList.remove('no-global-scroll')
+  window.removeEventListener('gesturestart', preventGesture)
+  window.removeEventListener('gesturechange', preventGesture)
+  window.removeEventListener('gestureend', preventGesture)
+  window.removeEventListener('wheel', preventCtrlWheelZoom)
+}
+
+/* =======================
    ✅ MOBILE DETECTOR + COLLAPSE MAP
    ======================= */
 const isMobile = ref(false)
@@ -484,15 +525,18 @@ function updateIsMobile() {
 }
 
 onMounted(() => {
+  lockPage()
+
   if (typeof window === 'undefined') return
   mq = window.matchMedia('(max-width: 900px)')
   updateIsMobile()
-  // compat
   if (mq.addEventListener) mq.addEventListener('change', updateIsMobile)
   else mq.addListener(updateIsMobile)
 })
 
 onBeforeUnmount(() => {
+  unlockPage()
+
   if (!mq) return
   if (mq.removeEventListener) mq.removeEventListener('change', updateIsMobile)
   else mq.removeListener(updateIsMobile)
@@ -502,8 +546,8 @@ onBeforeUnmount(() => {
    CITY OPTIONS (con “Todas”)
    ======================= */
 const orderedCities = computed(() => {
-  return [...cities.value.filter((s) => ![18, 15, 19].includes(s.city_id))]
-    .sort((a, b) => (a.index ?? 0) - (b.index ?? 0))
+  return [...cities.value.filter((s) => ![18, 15, 19].includes(Number(s.city_id)))]
+    .sort((a, b) => (Number(a.index ?? 0) - Number(b.index ?? 0)))
 })
 
 const citySelectOptions = computed(() => {
@@ -547,8 +591,8 @@ async function onAddressComplete(e) {
       session_token: sessionToken.value
     })
 
-    if (selectedCityId.value) {
-      const c = cities.value.find((x) => x.city_id === selectedCityId.value)
+    if (Number(selectedCityId.value)) {
+      const c = cities.value.find((x) => Number(x.city_id) === Number(selectedCityId.value))
       if (c) params.append('city', c.city_name)
     }
 
@@ -665,7 +709,7 @@ const isGoogleCity = computed(() => {
   const cityId = modalStore.value
     ? (modalStore.value.cityId || modalStore.value.city_id)
     : selectedCityId.value
-  return !!cityId && isGoogleMapsEnabled(Number(cityId))
+  return !!Number(cityId) && isGoogleMapsEnabled(Number(cityId))
 })
 const isParamsCity = computed(() => !isGoogleCity.value)
 
@@ -686,10 +730,9 @@ watch(shouldCollapseMap, async (collapsed) => {
     setTimeout(() => {
       try {
         map.value?.invalidateSize?.()
-        // opcional: recalcular bounds (si ya los tienes)
         if (initialBounds.value) map.value?.fitBounds?.(initialBounds.value, { padding: [20, 20] })
       } catch {}
-    }, 380) // debe coincidir con el transition CSS
+    }, 380)
   }
 })
 
@@ -714,7 +757,7 @@ async function openModal(store) {
 
   const cityId = store.cityId || store.city_id
   if (cityId && !isGoogleMapsEnabled(cityId)) {
-    if (neighborhoods.value.length === 0 || selectedCityId.value !== cityId) {
+    if (neighborhoods.value.length === 0 || Number(selectedCityId.value) !== Number(cityId)) {
       await loadNeighborhoodsByCity(cityId)
     }
   }
@@ -827,7 +870,7 @@ function onDispatchModalParams() {
 
   dispatchToSite(targetStore, ot, {
     mode: 'params',
-    city: cities.value.find((c) => c.city_id == targetStore.cityId),
+    city: cities.value.find((c) => Number(c.city_id) === Number(targetStore.cityId)),
     neighborhood: modalSelectedNeighborhood.value,
     exactAddress: modalParamAddress.value
   })
@@ -837,7 +880,7 @@ function confirmGoogleDispatch() {
   if (!modalCoverageResult.value) return
 
   const siteId = modalCoverageResult.value.nearest?.site?.site_id || modalStore.value.id
-  let targetStore = getStoreById(siteId)
+  let targetStore = getStoreById(Number(siteId))
   if (!targetStore) targetStore = modalStore.value
 
   const ot = getExactOrderType(targetStore.id, 3)
@@ -892,7 +935,8 @@ async function loadStores() {
         lat: s.location?.[0] || 4.0,
         lng: s.location?.[1] || -74.0,
         subdomain: s.subdomain,
-        img_id: s.img_id
+        img_id: s.img_id,
+        status: 'unknown'
       }))
   } catch {}
 }
@@ -923,13 +967,13 @@ function getExactOrderType(siteId, typeId) {
   return available.find((ot) => Number(ot.id) === Number(typeId)) || null
 }
 function getIconForOrderType(id) {
-  if (id === 3) return 'mdi:moped'
-  if (id === 2) return 'mdi:shopping-outline'
-  if (id === 6) return 'mdi:silverware-fork-knife'
+  if (Number(id) === 3) return 'mdi:moped'
+  if (Number(id) === 2) return 'mdi:shopping-outline'
+  if (Number(id) === 6) return 'mdi:silverware-fork-knife'
   return 'mdi:star'
 }
 function getButtonClass(id) {
-  if (id === 3) return 'modal-btn--delivery'
+  if (Number(id) === 3) return 'modal-btn--delivery'
   return 'modal-btn--pickup'
 }
 
@@ -1092,7 +1136,7 @@ const onImgError = (store) => { imgCache.value[store.id] = `${BACKEND_BASE}/read
 /* =======================
    UTILS + DATA
    ======================= */
-function getStoreById(id) { return stores.value.find(s => s.id === id) }
+function getStoreById(id) { return stores.value.find(s => Number(s.id) === Number(id)) }
 function formatCOP(v) {
   return v != null
     ? new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(v)
@@ -1104,7 +1148,9 @@ function formatCOP(v) {
    ======================= */
 const filteredStores = computed(() => {
   let base = stores.value
-  if (selectedCityId.value) base = base.filter((s) => s.cityId === selectedCityId.value)
+  const cityId = Number(selectedCityId.value || 0)
+  if (cityId) base = base.filter((s) => Number(s.cityId) === cityId)
+
   if (mapBounds.value) {
     base = base.filter((s) =>
       s.lat <= mapBounds.value.north &&
@@ -1124,6 +1170,9 @@ function updateBounds() {
 }
 
 async function onCityChange() {
+  // ✅ asegurar número (PrimeVue a veces retorna string)
+  selectedCityId.value = Number(selectedCityId.value || 0)
+
   // ✅ al cambiar ciudad: reseteo resultados => el mapa vuelve a aparecer en móvil con animación
   coverageResult.value = null
   addressQuery.value = ''
@@ -1157,16 +1206,16 @@ async function onCityChange() {
     return
   }
 
-  const cityStores = stores.value.filter((s) => s.cityId === cityIdAtClick)
+  const cityStores = stores.value.filter((s) => Number(s.cityId) === Number(cityIdAtClick))
   const latlngs = cityStores.map((s) => [s.lat, s.lng])
   if (!latlngs.length) return
 
   const targetBounds = L.latLngBounds(latlngs)
 
-  // ✅ "doble animación" como tenías
+  // ✅ "doble animación"
   map.value.flyToBounds(initialBounds.value, { padding: [40, 40], animate: true, duration: 0.7 })
   setTimeout(() => {
-    if (!map.value || selectedCityId.value !== cityIdAtClick) return
+    if (!map.value || Number(selectedCityId.value) !== Number(cityIdAtClick)) return
     map.value.flyToBounds(targetBounds, { padding: [40, 40], animate: true, duration: 0.9 })
   }, 750)
 }
@@ -1188,6 +1237,8 @@ onMounted(async () => {
     maxBounds: colombiaBounds,
     maxBoundsViscosity: 1.0,
     zoomControl: false,
+
+    // ✅ Sin gestos / zoom / scroll en el mapa (app-like)
     scrollWheelZoom: false,
     doubleClickZoom: false,
     touchZoom: false,
@@ -1235,19 +1286,101 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-/* Layout base */
-.vicio-page { display: flex; min-height: 100vh; width: 100%; overflow-x: hidden; background: var(--bg-page); color: var(--text-primary); font-family: 'Roboto', sans-serif; }
+/* =========================
+   ✅ GLOBAL: sin scroll global (app-like)
+   ========================= */
+:global(html.no-global-scroll),
+:global(body.no-global-scroll) {
+  height: 100%;
+  overflow: hidden !important;
+  overscroll-behavior: none;
+}
 
-.vicio-map-shell { flex: 1 1 55%; height: 100vh; background: #e2e8f0; overflow: hidden; }
-.vicio-map { width: 100%; height: 100%; background: #e2e8f0; }
+:global(body.no-global-scroll) {
+  margin: 0;
+}
 
-.vicio-sidebar { flex: 1 1 45%; display: flex; flex-direction: column; background: #ffffff; border-left: 1px solid var(--border-subtle); box-shadow: -5px 0 25px rgba(0, 0, 0, 0.05); max-height: 100vh; }
+/* Evita “bounce” raro en iOS */
+:global(html.no-global-scroll) {
+  -webkit-text-size-adjust: 100%;
+}
 
-.sidebar-header { padding: 1.4rem 1.8rem 1rem; border-bottom: 1px solid var(--border-subtle); background: #ffffff; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03); position: relative; z-index: 5; }
-.sidebar-title { font-size: 0.82rem; letter-spacing: 0.18em; font-weight: 800; margin: 0 0 0.9rem; text-transform: uppercase; color: var(--text-primary); display: flex; align-items: center; gap: 0.4rem; }
+/* =========================
+   Layout base (App Shell)
+   ========================= */
+.vicio-root { width: 100%; height: 100%; }
+.vicio-page {
+  display: flex;
+  width: 100%;
+  height: 100dvh;           /* ✅ mejor que 100vh en móvil */
+  max-height: 100dvh;
+  overflow: hidden;         /* ✅ no scroll global */
+  background: var(--bg-page);
+  color: var(--text-primary);
+  font-family: 'Roboto', sans-serif;
+
+  /* ✅ evita gestos globales; el scroll vive SOLO en .stores-list */
+  touch-action: none;
+}
+
+/* ✅ mapa se queda fijo dentro del layout, sin scroll */
+.vicio-map-shell {
+  flex: 1 1 55%;
+  height: 100%;
+  background: #e2e8f0;
+  overflow: hidden;
+  position: relative;
+}
+.vicio-map {
+  width: 100%;
+  height: 100%;
+  background: #e2e8f0;
+  touch-action: none; /* ✅ sin pinch/drag en el mapa */
+}
+
+/* Sidebar sin scroll global, SOLO lista */
+.vicio-sidebar {
+  flex: 1 1 45%;
+  display: flex;
+  flex-direction: column;
+  background: #ffffff;
+  border-left: 1px solid var(--border-subtle);
+  box-shadow: -5px 0 25px rgba(0, 0, 0, 0.05);
+  height: 100%;
+  overflow: hidden; /* ✅ */
+}
+
+.sidebar-header {
+  padding: 1.4rem 1.8rem 1rem;
+  border-bottom: 1px solid var(--border-subtle);
+  background: #ffffff;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
+  position: relative;
+  z-index: 5;
+}
+.sidebar-title {
+  font-size: 0.82rem;
+  letter-spacing: 0.18em;
+  font-weight: 800;
+  margin: 0 0 0.9rem;
+  text-transform: uppercase;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
 .sidebar-title::before { content: "🔥"; font-size: 1rem; }
+
 .city-select-wrapper { margin-bottom: 0.9rem; }
-.city-label { display: block; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.12em; color: var(--text-soft); margin-bottom: 0.35rem; }
+.city-label {
+  display: block;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--text-soft);
+  margin-bottom: 0.35rem;
+}
 
 .search-wrapper { position: relative; display: flex; flex-direction: column; gap: 0.25rem; }
 .params-box { margin-top: .6rem; }
@@ -1255,45 +1388,143 @@ onMounted(async () => {
 .ac-item { display: flex; align-items: center; gap: .55rem; }
 .item-icon { color: var(--text-soft); font-size: 1.1em; }
 
-.coverage-card { margin: 1rem 1.8rem; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 0.75rem; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); }
-.coverage-header { background: #f8fafc; padding: 0.75rem 1rem; display: flex; align-items: center; gap: 0.5rem; border-bottom: 1px solid #e2e8f0; }
+.coverage-card {
+  margin: 1rem 1.8rem;
+  background-color: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.75rem;
+  overflow: hidden;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+}
+.coverage-header {
+  background: #f8fafc;
+  padding: 0.75rem 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  border-bottom: 1px solid #e2e8f0;
+}
 .coverage-icon { color: #ff6600; }
-.coverage-title { margin: 0; font-size: 0.85rem; font-weight: 800; text-transform: uppercase; color: #334155; }
+.coverage-title {
+  margin: 0;
+  font-size: 0.85rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  color: #334155;
+}
 .coverage-body { padding: 1rem; font-size: 0.9rem; }
 .coverage-row { display: flex; justify-content: space-between; margin-bottom: 0.5rem; }
 .coverage-label { color: #64748b; font-weight: 500; font-size: 0.85rem; }
 .coverage-value { color: #1e293b; font-weight: 600; text-align: right; max-width: 60%; }
 .coverage-value.address-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .coverage-value.price { color: #16a34a; font-weight: 800; font-size: 1rem; }
-.coverage-status-text { margin-top: 0.8rem; padding-top: 0.5rem; border-top: 1px dashed #e2e8f0; text-align: center; font-size: 0.85rem; font-weight: 700; }
+.coverage-status-text {
+  margin-top: 0.8rem;
+  padding-top: 0.5rem;
+  border-top: 1px dashed #e2e8f0;
+  text-align: center;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
 .text-ok { color: #15803d; }
 .text-fail { color: #b91c1c; }
 .coverage-actions { display: flex; gap: 0.8rem; padding: 0 1rem 1rem; flex-wrap: wrap; }
 
-.btn-action { flex: 1; display: flex; align-items: center; justify-content: center; gap: 0.4rem; padding: 0.7rem; border-radius: 0.5rem; font-size: 0.85rem; font-weight: 700; text-transform: uppercase; cursor: pointer; border: none; transition: transform 0.1s; }
+.btn-action {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.7rem;
+  border-radius: 0.5rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  cursor: pointer;
+  border: none;
+  transition: transform 0.1s;
+}
 .btn-action:disabled { opacity: .55; cursor: not-allowed; }
 .btn-action:active { transform: scale(0.97); }
 .btn-delivery { background-color: #ff6600; color: #ffffff; box-shadow: 0 4px 10px rgba(255, 102, 0, 0.25); }
 .btn-delivery:hover { background-color: #e65c00; }
 .full-width { width: 100%; }
 
-.stores-list { flex: 1; overflow-y: auto; padding: 0.45rem 0; background: #ffffff; }
-.store-item { display: flex; align-items: center; justify-content: flex-start; padding: 0.95rem 1.8rem; border-bottom: 1px solid #f1f5f9; cursor: pointer; gap: 1rem; transition: all 0.15s ease; }
+/* ✅ SOLO aquí hay scroll */
+.stores-list {
+  flex: 1;
+  overflow-y: auto;
+  background: #ffffff;
+  padding: 0.45rem 0 1.2rem;
+  overscroll-behavior: contain;         /* ✅ no rebote hacia “body” */
+  -webkit-overflow-scrolling: touch;    /* ✅ suave iOS */
+  touch-action: pan-y;                  /* ✅ permitir scroll vertical */
+}
+
+.store-item {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 0.95rem 1.8rem;
+  border-bottom: 1px solid #f1f5f9;
+  cursor: pointer;
+  gap: 1rem;
+  transition: all 0.15s ease;
+}
 .store-item:hover { background: #f8fafc; transform: translateY(-1px); }
 .store-item--active { background: #fff7ed; border-left: 3px solid #ff6600; }
-.store-img-wrapper { width: 90px; height: 90px; flex-shrink: 0; border-radius: 0.5rem; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1); background-color: #f1f5f9; }
+
+.store-img-wrapper {
+  width: 90px;
+  height: 90px;
+  flex-shrink: 0;
+  border-radius: 0.5rem;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  background-color: #f1f5f9;
+}
 .store-img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.3s ease; }
 .store-item:hover .store-img { transform: scale(1.05); }
+
 .store-info { flex: 1; display: flex; flex-direction: column; gap: 0.2rem; }
 .store-name { margin: 0; font-size: 1rem; font-weight: 800; color: var(--text-primary); }
 .store-services { font-size: 0.7rem; font-weight: 600; text-transform: uppercase; color: #ff6600; letter-spacing: 0.12em; }
 .store-address { font-size: 0.84rem; color: var(--text-soft); margin-bottom: 0.4rem; }
-.store-action { align-self: flex-start; border: none; font-size: 0.72rem; font-weight: 800; padding: 0.38rem 0.85rem; border-radius: 999px; text-transform: uppercase; letter-spacing: 0.12em; display: inline-flex; align-items: center; }
+
+.store-action {
+  align-self: flex-start;
+  border: none;
+  font-size: 0.72rem;
+  font-weight: 800;
+  padding: 0.38rem 0.85rem;
+  border-radius: 999px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  display: inline-flex;
+  align-items: center;
+}
 .status-flex { display: flex; align-items: center; gap: 0.35rem; }
 .store-action[data-status='open'] { background: #dcfce7; color: #166534; }
-.store-action[data-status='closed'], .store-action[data-status='close'] { background: #fee2e2; color: #991b1b; }
+.store-action[data-status='closed'],
+.store-action[data-status='close'] { background: #fee2e2; color: #991b1b; }
 .store-action[data-status='unknown'] { background: #f1f5f9; color: #94a3b8; }
-.store-arrow { background: #000000; color: #ffffff; width: 40px; height: 40px; border-radius: 50%; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: transform 0.2s ease, background 0.2s ease; box-shadow: 0 4px 10px rgba(0,0,0,0.2); flex-shrink: 0; }
+
+.store-arrow {
+  background: #000000;
+  color: #ffffff;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.2s ease, background 0.2s ease;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+  flex-shrink: 0;
+}
 .store-arrow:hover { background: #333333; transform: scale(1.1); }
 
 :global(.leaflet-div-icon.fire-icon) { width: 42px !important; height: 42px !important; border: none; background: transparent; display: flex; align-items: center; justify-content: center; }
@@ -1303,16 +1534,35 @@ onMounted(async () => {
 .modal-close-btn { position: absolute; top: 10px; right: 10px; background: transparent; border: none; cursor: pointer; color: #94a3b8; padding: 5px; }
 .modal-close-btn:hover { color: #ef4444; }
 
-.modal-title { margin: 0 0 5px; font-size: 1.2rem; font-weight: 800; color: #1e293b; text-align: center; text-transform: uppercase; margin-top: 2rem; }
+.modal-title {
+  margin: 0 0 5px;
+  font-size: 1.2rem;
+  font-weight: 800;
+  color: #1e293b;
+  text-align: center;
+  text-transform: uppercase;
+  margin-top: 2rem;
+}
 .modal-subtitle { text-align: center; color: #64748b; font-size: 0.9rem; margin-bottom: 1.5rem; }
 
 .modal-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem; }
-.modal-btn { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 1.1rem 1rem; border-radius: 12px;width: 100%;aspect-ratio:  1 / 1; border: 2px solid transparent; background: #f8fafc; }
+.modal-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 1.1rem 1rem;
+  border-radius: 12px;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  border: 2px solid transparent;
+  background: #f8fafc;
+}
 .modal-btn--delivery:hover { background: #fff7ed; border-color: #ff6600; color: #c2410c; }
 .modal-btn--pickup:hover { background: #f0fdf4; border-color: #16a34a; color: #15803d; }
 
 .modal-header-nav { margin-bottom: 0.8rem; }
-.modal-back-btn { display: inline-flex; align-items: center; gap: 6px;margin: 1rem; }
+.modal-back-btn { display: inline-flex; align-items: center; gap: 6px; margin: 1rem; }
 
 .modal-error { margin-top: 10px; color: #ef4444; font-size: 0.85rem; text-align: center; }
 .modal-loading-view { text-align: center; padding: 2rem 0; color: #64748b; }
@@ -1333,9 +1583,8 @@ onMounted(async () => {
 
 /* ✅ Mobile behavior + animación de colapso */
 @media (max-width: 900px) {
-  .vicio-page { flex-direction: column; height: 100vh; overflow: hidden; }
+  .vicio-page { flex-direction: column; }
 
-  /* en vez de tocar #vicio-map directo, animamos el shell */
   .vicio-map-shell {
     flex: 0 0 auto;
     height: 40%;
@@ -1356,7 +1605,6 @@ onMounted(async () => {
     transition: height 0.38s ease, border-radius 0.38s ease, margin-top 0.38s ease;
   }
 
-  /* ✅ cuando ya hay barrio seleccionado o dirección seleccionada => ocultar mapa */
   .vicio-page.is-map-collapsed .vicio-map-shell {
     height: 0% !important;
     opacity: 0;
@@ -1370,7 +1618,6 @@ onMounted(async () => {
     border-radius: 0 !important;
   }
 
-  .stores-list { flex: 1; overflow-y: auto; padding-bottom: 2rem; }
   .store-img-wrapper { width: 70px; height: 70px; }
   .store-item { padding: 0.8rem 1rem; }
   .coverage-card { margin: 1rem; }
