@@ -43,13 +43,14 @@ export default defineNuxtConfig({
   primevue: {
         options: {
             theme: {
-                preset: MyPreset
-            },
-            options: {
+                preset: MyPreset,
+                options: {
                    
                  darkModeSelector: false,
                  
                 } 
+            },
+            
 
         },
       

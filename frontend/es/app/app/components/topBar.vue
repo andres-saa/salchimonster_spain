@@ -1014,6 +1014,7 @@ watch([menusAll, windowWidth], () => {
   .action-btn { width: 44px; height: 44px; border: 1px solid #f0f0f0; }
   .action-icon { font-size: 1.5rem; }
   .search-btn { margin-right: 0.5rem; }
+  .title-block{max-width: 5rem;}
 }
 
 .new {
