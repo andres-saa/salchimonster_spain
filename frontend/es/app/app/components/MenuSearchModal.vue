@@ -343,7 +343,7 @@ const setProductRef = (productId, categoryId, el) => {
   left: 0;
   width: 100%;
   height: 100vh; /* Ocupa toda la pantalla */
-  z-index: 9999; /* Por encima de todo */
+  z-index: 99999; /* Por encima de todo */
   overflow-y: auto; /* El scroll ocurre DENTRO del modal */
   overscroll-behavior: contain; /* Evita scroll en la página de fondo */
 }

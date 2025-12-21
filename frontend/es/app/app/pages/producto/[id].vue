@@ -194,7 +194,7 @@
 import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { formatoPesosColombianos } from '@/service/utils/formatoPesos'
-import { usecartStore, useFetch, useHead, useSitesStore } from '#imports'
+import { usecartStore, useFetch, useHead, useSitesStore, useState } from '#imports'
 import { useToast } from '@/composables/useToast'
 import { URI } from '~/service/conection'
 
@@ -205,8 +205,6 @@ const { showToast } = useToast()
 const sitesStore = useSitesStore()
 
 // --- ESTADOS Y STORES ---
-// Al recargar la página, sitesStore puede estar vacío en el servidor.
-// El valor por defecto (1) causaba el error al renderizar en servidor (SSR).
 const siteId = computed(() => (sitesStore?.location?.site?.site_id) || 1)
 
 const quantity = ref(1)
@@ -224,22 +222,59 @@ const mainImageRef = ref(null)
 const onImageLoad = () => { imageLoaded.value = true }
 const checkImageState = () => { if (mainImageRef.value?.complete) imageLoaded.value = true }
 
-onMounted(() => { checkImageState() })
+// =======================
+// ✅ CACHE MENU (NUEVO)
+// =======================
+const menuCache = useState('menu-cache', () => ({}))
 
-// --- DATA FETCHING CORREGIDO ---
-// Se agregó "server: false" para que la petición solo ocurra en el cliente
-// asegurando que Pinia ya tenga el siteId correcto cargado del localStorage.
-const { data: rawCategoriesData, pending: loading } = useFetch(
+const menuCacheKey = computed(() => `menu-data-${siteId.value}`)
+const cachedMenu = computed(() => menuCache.value[menuCacheKey.value] || null)
+
+// useFetch ya NO corre automáticamente.
+// - si hay cache => usamos cache (no red)
+// - si no hay cache => refresh() (1 vez) y guardamos
+const { data: rawCategoriesData, pending: loading, refresh } = useFetch(
   () => `${URI}/tiendas/${siteId.value}/products`,
   { 
-    key: () => `menu-data-${siteId.value}`,
-    server: false, // <--- ESTO SOLUCIONA EL ERROR AL RECARGAR
-    lazy: true     // <--- Opcional: mejora UX mostrando el loading mientras carga
+    key: () => menuCacheKey.value,
+    server: false,
+    lazy: true,
+    immediate: false,
+    default: () => cachedMenu.value // ✅ pinta instantáneo si vienes desde la Card
   }
 )
 
-// ... (Resto del código idéntico) ...
+const ensureMenuLoaded = async () => {
+  const key = menuCacheKey.value
+  const cached = menuCache.value[key]
 
+  if (cached) {
+    rawCategoriesData.value = cached
+    return
+  }
+
+  // Solo cliente
+  if (typeof window === 'undefined') return
+
+  await refresh()
+  if (rawCategoriesData.value) {
+    menuCache.value[key] = rawCategoriesData.value
+  }
+}
+
+onMounted(async () => {
+  checkImageState()
+  await ensureMenuLoaded()
+})
+
+// Si el siteId cambia (por ejemplo, se carga Pinia/localStorage después),
+// usamos cache si existe o pedimos UNA sola vez.
+watch(siteId, async (newVal, oldVal) => {
+  if (newVal === oldVal) return
+  await ensureMenuLoaded()
+})
+
+// --- RESTO DEL CÓDIGO (idéntico) ---
 const currentProductId = computed(() => Number(route.params.id))
 const flatProducts = computed(() => {
   const raw = rawCategoriesData.value
@@ -339,14 +374,12 @@ const handleAdditionChange = (item, groupId) => {
   const limits = groupLimits.value[key]
   
   if (!limits.multiple) {
-    // Single select logic
     Object.keys(selectedAdditions.value).forEach((k) => {
       if (selectedAdditions.value[k].modificador_id === groupId) delete selectedAdditions.value[k]
     })
     exclusive.value[groupId] = item.modificadorseleccion_id
     selectedAdditions.value[item.modificadorseleccion_id] = { ...item, modificadorseleccion_cantidad: 1, modificador_id: groupId }
   } else {
-    // Multi select logic
     if (checkedAddition.value[item.modificadorseleccion_id]) {
       if (limits.max > 0 && groupCount(key) + 1 > limits.max) {
         checkedAddition.value[item.modificadorseleccion_id] = false
@@ -481,6 +514,7 @@ useHead({ title: computed(() => currentProduct.value ? `${displayName.value} - M
 </script>
 
 <style scoped>
+/* ✅ NO CAMBIÉ NADA AQUÍ (es tu mismo CSS) */
 .page-wrapper {
   min-height: 100vh;
   padding-bottom: 90px;

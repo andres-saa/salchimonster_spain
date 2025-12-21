@@ -19,14 +19,23 @@ const dynamicPosts = ref([])
 const loading = ref(true)
 
 // =========================================
+// 📱 DETECCIÓN DE MÓVIL (para Teleport)
+// =========================================
+const isMobile = ref(false)
+const updateIsMobile = () => {
+  if (typeof window === 'undefined') return
+  isMobile.value = window.matchMedia('(max-width: 900px)').matches
+}
+
+// ✅ Teleport SOLO cuando lo necesitamos (móvil o drawer desktop)
+const shouldTeleport = computed(() => isMobile.value || isCartaRoute.value)
+
+// =========================================
 // 🌍 DETECCIÓN DE PAÍS
 // =========================================
-// Intentamos obtener el código de país del usuario (co, us, es).
-// Si no existe, por defecto usamos 'co' (Colombia).
 const currentCountry = computed(() => {
-  // Ajusta 'user.country' según cómo guardes el país en tu store real
-  const code = user.country?.code || user.country || 'co' 
-  return code.toLowerCase()
+  const code = user.country?.code || user.country || 'co'
+  return String(code).toLowerCase()
 })
 
 // =========================================
@@ -37,18 +46,22 @@ const fetchPosts = async () => {
   try {
     const res = await fetch(API_URL).then(r => r.json())
     if (res && res.data) {
-      // Obtenemos el array del país actual (co, us, es)
       const countryPosts = res.data[currentCountry.value] || []
-      dynamicPosts.value = countryPosts
+      dynamicPosts.value = Array.isArray(countryPosts) ? countryPosts : []
+    } else {
+      dynamicPosts.value = []
     }
   } catch (e) {
-    console.error("Error cargando posts del sidebar:", e)
+    console.error('Error cargando posts del sidebar:', e)
+    dynamicPosts.value = []
   } finally {
     loading.value = false
   }
 }
 
-// 🔹 Menú de Navegación (Sin cambios)
+// =========================================
+// 🔹 Menú de Navegación
+// =========================================
 const menus = computed(() => {
   const langKey = (user.lang?.name || 'es').toLowerCase()
   const t = texts[langKey]?.menus || {}
@@ -71,8 +84,7 @@ const networkLabel = (type) => {
 }
 
 const getImageUrl = (identifier) => {
-  if (!identifier) return '' 
-  // Si ya viene con http (caso legacy), se deja, si no, se concatena
+  if (!identifier) return ''
   return identifier.startsWith('http') ? identifier : `${IMG_BASE_URL}${identifier}`
 }
 
@@ -80,10 +92,11 @@ const closeSidebar = () => {
   store.side_bar_visible = false
 }
 
-/* referencia al contenedor que scrollea */
+// =========================================
+// 📌 Scroll container
+// =========================================
 const containerRef = ref(null)
 
-/* LÓGICA DE SCROLL (Original) */
 const isPinned = ref(true)
 const isAtTop = ref(true)
 const lastScrollY = ref(0)
@@ -98,23 +111,31 @@ const handleScroll = () => {
   const delta = currentY - lastScrollY.value
   isAtTop.value = currentY < 10
 
-  if (Math.abs(delta) < MIN_SCROLL_DELTA) { lastScrollY.value = currentY; return }
+  if (Math.abs(delta) < MIN_SCROLL_DELTA) {
+    lastScrollY.value = currentY
+    return
+  }
 
   if (isPinned.value) {
     const scrolledDownSinceToggle = currentY - lastToggleY.value
     if (delta > 0 && currentY > 80 && scrolledDownSinceToggle > TOGGLE_DISTANCE) {
-      isPinned.value = false; lastToggleY.value = currentY
+      isPinned.value = false
+      lastToggleY.value = currentY
     }
   } else {
     const scrolledUpSinceToggle = lastToggleY.value - currentY
     if ((delta < 0 && scrolledUpSinceToggle > TOGGLE_DISTANCE) || currentY < 10) {
-      isPinned.value = true; lastToggleY.value = currentY
+      isPinned.value = true
+      lastToggleY.value = currentY
     }
   }
+
   lastScrollY.value = currentY
 }
 
-/* ✅ detectar si estamos en /carta */
+// =========================================
+// ✅ detectar si estamos en rutas "carta" (drawer desktop)
+// =========================================
 const isCartaRoute = computed(() => {
   const path = route.path || ''
   const keywords = ['/carta', '/cart', '/sedes', '/franquicias', '/colaboraciones', '/sonando', '/producto', '/pay', '/gracias']
@@ -122,24 +143,37 @@ const isCartaRoute = computed(() => {
 })
 
 watch(isCartaRoute, (val) => {
+  // si entramos a ruta de drawer desktop, cerramos por defecto
   if (val) store.side_bar_visible = false
 }, { immediate: true })
 
-// Recargar posts si cambia el país (opcional, si el usuario cambia de país en tiempo real)
 watch(currentCountry, () => {
   fetchPosts()
 })
 
+// ✅ cerrar al navegar (opcional pero recomendado)
+watch(() => route.fullPath, () => {
+  if (store.side_bar_visible) closeSidebar()
+})
+
 onMounted(() => {
-  fetchPosts() // Cargar datos al montar
+  updateIsMobile()
+  window.addEventListener('resize', updateIsMobile, { passive: true })
+
+  fetchPosts()
+
   const el = containerRef.value
   if (!el) return
   const y = el.scrollTop || 0
-  lastScrollY.value = y; lastToggleY.value = y
+  lastScrollY.value = y
+  lastToggleY.value = y
   el.addEventListener('scroll', handleScroll, { passive: true })
 })
 
 onBeforeUnmount(() => {
+  if (typeof window !== 'undefined') {
+    window.removeEventListener('resize', updateIsMobile)
+  }
   const el = containerRef.value
   if (!el) return
   el.removeEventListener('scroll', handleScroll)
@@ -147,24 +181,26 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div>
+  <!-- ✅ Teleport a body en móvil o drawer-desktop para evitar bugs por transforms del layout -->
+  <Teleport to="body" :disabled="!shouldTeleport">
+    <!-- Backdrop solo cuando es overlay (móvil o drawer desktop) -->
     <div
-      v-if="store.side_bar_visible"
+      v-if="store.side_bar_visible && (isMobile || isCartaRoute)"
       class="sidebar-backdrop"
       @click="closeSidebar"
-    ></div>
+    />
 
     <aside
       ref="containerRef"
-      class="container"
+      class="sidebar"
       :class="{
-        'container--mobile-open': store.side_bar_visible,
-        'container--drawer-desktop': isCartaRoute
+        'sidebar--open': store.side_bar_visible,
+        'sidebar--drawer-desktop': isCartaRoute
       }"
     >
       <div class="mobile-header" v-if="store.side_bar_visible">
         <h3 class="mobile-header__title">Menú</h3>
-        <button class="close-btn" @click="closeSidebar">
+        <button class="close-btn" @click="closeSidebar" aria-label="Cerrar menú">
           <Icon name="mdi:close" />
         </button>
       </div>
@@ -190,7 +226,7 @@ onBeforeUnmount(() => {
       </div>
 
       <div v-if="loading" class="posts-wrapper">
-         <div class="post-card skeleton" v-for="i in 2" :key="i"></div>
+        <div class="post-card skeleton" v-for="i in 2" :key="i"></div>
       </div>
 
       <div v-else class="posts-wrapper">
@@ -209,7 +245,7 @@ onBeforeUnmount(() => {
               class="post-image"
               loading="lazy"
             />
-            
+
             <div class="post-gradient"></div>
 
             <div class="post-overlay" :class="`post-overlay--${post.type}`">
@@ -225,22 +261,22 @@ onBeforeUnmount(() => {
             </div>
           </div>
         </a>
-        
+
         <div v-if="dynamicPosts.length === 0" class="no-posts">
-           <p>¡Síguenos en nuestras redes!</p>
+          <p>¡Síguenos en nuestras redes!</p>
         </div>
       </div>
-      
+
       <div style="height: 3rem;"></div>
     </aside>
-  </div>
+  </Teleport>
 </template>
 
 <style scoped>
 /* =========================================
-   1. CONTENEDOR PRINCIPAL
+   1. CONTENEDOR PRINCIPAL (INLINE DESKTOP)
    ========================================= */
-.container {
+.sidebar {
   padding-bottom: 1rem;
   background-color: #f8f9fa;
   width: 100%;
@@ -252,7 +288,7 @@ onBeforeUnmount(() => {
   scrollbar-width: none;
   -ms-overflow-style: none;
 }
-.container::-webkit-scrollbar { display: none; }
+.sidebar::-webkit-scrollbar { display: none; }
 
 /* =========================================
    2. MENÚ MÓVIL
@@ -368,9 +404,9 @@ onBeforeUnmount(() => {
   position: relative;
   border-radius: .5rem;
   overflow: hidden;
-  aspect-ratio: 4/5; 
+  aspect-ratio: 4/5;
   box-shadow: 0 10px 25px rgba(0,0,0,0.1);
-  transform: translateZ(0); 
+  transform: translateZ(0);
   transition: transform 0.3s ease, box-shadow 0.3s ease;
   background: white;
 }
@@ -422,7 +458,6 @@ onBeforeUnmount(() => {
 }
 .post-item:hover .cta-button { transform: translateY(0); }
 
-/* Badges */
 .post-badge {
   position: absolute;
   top: 1rem;
@@ -455,48 +490,58 @@ onBeforeUnmount(() => {
 @keyframes shine { to { background-position-x: -200%; } }
 
 /* =========================================
-   4. LOGICA RESPONSIVE / DRAWER
+   4. BACKDROP
    ========================================= */
 .sidebar-backdrop {
-  display: none;
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.6);
-  z-index: 9990;
+  z-index: 99998;
   backdrop-filter: blur(4px);
   animation: fadeIn 0.3s ease;
 }
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
+/* =========================================
+   5. OFFCANVAS MÓVIL
+   ========================================= */
 @media (max-width: 900px) {
-  .container {
+  .sidebar {
     position: fixed;
     left: 0; top: 0; bottom: 0;
-    width: 85%; max-width: 380px;
+    width: 85%;
+    max-width: 380px;
     background: #f8f9fa;
-    transform: translateX(-100%);
+    transform: translateX(-110%);
     transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    z-index: 9999;
+    z-index: 99999;
     box-shadow: 5px 0 25px rgba(0,0,0,0.2);
+    will-change: transform;
   }
-  .container.container--mobile-open { transform: translateX(0); }
+  .sidebar.sidebar--open { transform: translateX(0); }
   .mobile-menu { display: flex; }
-  .sidebar-backdrop { display: block; }
 }
 
-.container--drawer-desktop {
-  position: fixed;
-  left: 0; top: 0; bottom: 0;
-  width: 320px;
-  background: white;
-  transform: translateX(-100%);
-  transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
-  z-index: 9999;
-  box-shadow: 5px 0 25px rgba(0,0,0,0.15);
-}
-.container--drawer-desktop.container--mobile-open { transform: translateX(0); }
+/* =========================================
+   6. DRAWER DESKTOP (solo rutas carta)
+   ========================================= */
+@media (min-width: 901px) {
+  .sidebar.sidebar--drawer-desktop {
+    position: fixed;
+    left: 0; top: 0; bottom: 0;
+    width: 320px;
+    background: white;
+    transform: translateX(-110%);
+    transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 99999;
+    box-shadow: 5px 0 25px rgba(0,0,0,0.15);
+    will-change: transform;
+  }
+  .sidebar.sidebar--drawer-desktop.sidebar--open {
+    transform: translateX(0);
+  }
 
-@media (min-width: 900px) {
-  .container:not(.container--drawer-desktop) .mobile-menu { display: none; }
+  /* si NO es drawer desktop, el menú móvil no se muestra */
+  .sidebar:not(.sidebar--drawer-desktop) .mobile-menu { display: none; }
 }
 </style>

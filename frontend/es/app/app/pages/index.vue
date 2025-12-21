@@ -199,7 +199,7 @@ const onClickProduct = (category, product) => {
 }
 
 /* ==========================
-   REFS / OBSERVERS (COPIADOS DEL QUE FUNCIONA)
+   REFS / OBSERVERS
    ========================== */
 const activeCategoryId = ref(null)
 const categoryRefs = ref({})
@@ -211,7 +211,30 @@ const productCategoryObserver = ref(null)
 const isProgrammaticScroll = ref(false)
 let programmaticScrollTimer = null
 
-// ✅ Esta función es la parte que suele faltar cuando hay SSR/caché: re-observar lo ya renderizado
+/* ==========================
+   ✅ DEBOUNCE CAMBIO DE CATEGORÍA (500ms)
+   ========================== */
+const CATEGORY_CHANGE_DEBOUNCE_MS = 100
+let categoryDebounceTimer = null
+let pendingCategoryId = null
+
+const scheduleActiveCategoryChange = (catId) => {
+  if (!process.client) return
+  if (!catId) return
+  if (isProgrammaticScroll.value) return
+
+  pendingCategoryId = catId
+
+  if (categoryDebounceTimer) window.clearTimeout(categoryDebounceTimer)
+
+  categoryDebounceTimer = window.setTimeout(() => {
+    if (pendingCategoryId && pendingCategoryId !== activeCategoryId.value) {
+      activeCategoryId.value = pendingCategoryId
+    }
+  }, CATEGORY_CHANGE_DEBOUNCE_MS)
+}
+
+// ✅ re-observar lo ya renderizado (SSR/caché)
 const observeAllProducts = () => {
   if (!process.client) return
   const els = Object.values(productRefs.value)
@@ -222,12 +245,8 @@ const observeAllProducts = () => {
     // animación inicial
     el.classList.add('menu-product-card--hidden')
 
-    if (productObserver.value) {
-      productObserver.value.observe(el)
-    }
-    if (productCategoryObserver.value) {
-      productCategoryObserver.value.observe(el)
-    }
+    if (productObserver.value) productObserver.value.observe(el)
+    if (productCategoryObserver.value) productCategoryObserver.value.observe(el)
   })
 }
 
@@ -254,10 +273,9 @@ onMounted(async () => {
     }
   )
 
-  // Observer para actualizar categoría activa según productos visibles
+  // Observer para actualizar categoría activa según productos visibles (con debounce)
   productCategoryObserver.value = new IntersectionObserver(
     (entries) => {
-      // Mientras estamos haciendo scroll programático NO actualizamos categoría
       if (isProgrammaticScroll.value) return
 
       const visibles = []
@@ -278,22 +296,22 @@ onMounted(async () => {
 
       if (!visibles.length) return
 
-      // Tomamos el producto más cercano a la parte superior del viewport
       visibles.sort((a, b) => a.top - b.top)
       const best = visibles[0]
 
-      if (best.catId && best.catId !== activeCategoryId.value) {
-        activeCategoryId.value = best.catId
+      if (best.catId) {
+        // ✅ aquí está el cambio: NO rafaga, solo si se mantiene 500ms
+        scheduleActiveCategoryChange(best.catId)
       }
     },
     {
       root: null,
-      rootMargin: '-120px 0px -60% 0px',
+      rootMargin: '-50px 0px -60% 0px',
       threshold: 0.3
     }
   )
 
-  // ✅ IMPORTANTÍSIMO: enganchar lo que ya exista en el DOM
+  // enganchar lo que ya exista en el DOM
   await nextTick()
   observeAllProducts()
 
@@ -315,6 +333,11 @@ onBeforeUnmount(() => {
 
   if (clientRefreshIntervalId && process.client) {
     window.clearInterval(clientRefreshIntervalId)
+  }
+
+  // ✅ limpiar debounce timer
+  if (categoryDebounceTimer && process.client) {
+    window.clearTimeout(categoryDebounceTimer)
   }
 })
 
@@ -419,7 +442,6 @@ watch(
   { immediate: true, flush: 'post' }
 )
 
-// ✅ aquí metimos el “paso 3” que tu componente nuevo no tenía
 watch(
   categories,
   (list) => {
@@ -441,7 +463,7 @@ watch(
       if (activeCategoryId.value != null) {
         scrollToCategoryId(activeCategoryId.value)
       }
-      // y de paso re-observamos por si el refresh cambió DOM/refs
+      // re-observamos por si el refresh cambió DOM/refs
       observeAllProducts()
     })
   },
@@ -467,6 +489,7 @@ useHead(() => ({ title: pageTitle.value }))
 .menu-page {
   min-height: 100vh;
   color: #111827;
+
   font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
 
@@ -480,6 +503,7 @@ useHead(() => ({ title: pageTitle.value }))
 /* SECCIÓN CATEGORÍA */
 .menu-category-section {
   padding-top: 2rem;
+  padding:1rem;
   padding-bottom: 1.5rem;
   border-bottom: 1px solid #e5e7eb;
 }
@@ -500,6 +524,7 @@ useHead(() => ({ title: pageTitle.value }))
   font-size: 2rem;
   font-weight: 700;
   margin: 1rem 0;
+ 
   text-transform: none;
 }
 
@@ -514,7 +539,7 @@ useHead(() => ({ title: pageTitle.value }))
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
   gap: 0.9rem;
-  padding-bottom: 5rem;
+  padding-bottom: 2rem;
 }
 
 /* 📱 RESPONSIVE MÓVIL */
@@ -526,6 +551,7 @@ useHead(() => ({ title: pageTitle.value }))
 
   .menu-category-section {
     padding-top: 1.2rem;
+    padding: .5rem;
     padding-bottom: 1rem;
   }
 

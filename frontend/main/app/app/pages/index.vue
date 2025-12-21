@@ -14,9 +14,13 @@
       </div>
     </Transition>
 
-    <div class="vicio-page">
+    <!-- ✅ Clase que colapsa el mapa en móvil cuando ya hay selección -->
+    <div class="vicio-page" :class="{ 'is-map-collapsed': shouldCollapseMap }">
       <ClientOnly>
-        <div id="vicio-map" class="vicio-map"></div>
+        <!-- ✅ Shell para animar el alto del mapa sin destruir Leaflet -->
+        <div class="vicio-map-shell">
+          <div id="vicio-map" class="vicio-map"></div>
+        </div>
       </ClientOnly>
 
       <div class="vicio-sidebar">
@@ -95,7 +99,8 @@
 
             <div class="form-group" style="margin-top:.7rem;">
               <label class="city-label">Dirección exacta</label>
-              <InputText style="width: 100%;"
+              <InputText
+                style="width: 100%;"
                 v-model="paramExactAddress"
                 class="w-full"
                 placeholder="Ej: Calle 123 # 45 - 67..."
@@ -258,9 +263,7 @@
                 @click="handleModalOption(ot)"
                 severity="secondary"
               >
-                <template #icon>
-                  <Icon :name="getIconForOrderType(ot.id)" size="1.8em" />
-                </template>
+                <Icon :name="getIconForOrderType(ot.id)" size="1.8em" />
                 <span>{{ ot.name }}</span>
               </Button>
             </div>
@@ -270,9 +273,7 @@
           <div v-else-if="modalStep === 2">
             <div class="modal-header-nav">
               <Button text class="modal-back-btn" @click="setModalStep(1)">
-                <template #icon>
-                  <Icon name="mdi:arrow-left" size="1.2em" />
-                </template>
+                <Icon name="mdi:arrow-left" size="1.2em" />
                 <span>Volver</span>
               </Button>
             </div>
@@ -281,7 +282,7 @@
             <div v-if="isGoogleCity">
               <h3 class="modal-title">¿Dónde estás?</h3>
 
-              <AutoComplete 
+              <AutoComplete
                 v-model="modalAddressQuery"
                 :suggestions="modalSuggestions"
                 optionLabel="description"
@@ -341,7 +342,7 @@
               <div class="form-group" style="margin-top: 1rem;">
                 <label class="city-label">Dirección Exacta</label>
                 <InputText
-                style="width: 100%;"
+                  style="width: 100%;"
                   v-model="modalParamAddress"
                   class="w-full"
                   placeholder="Ej: Calle 123 # 45 - 67 Apt 201"
@@ -428,7 +429,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, nextTick, watch } from 'vue'
+import { ref, computed, onMounted, nextTick, watch, onBeforeUnmount } from 'vue'
 import { useRoute } from 'vue-router'
 import 'leaflet/dist/leaflet.css'
 
@@ -472,6 +473,32 @@ const isRedirecting = ref(false)
 const targetSiteName = ref('')
 
 /* =======================
+   ✅ MOBILE DETECTOR + COLLAPSE MAP
+   ======================= */
+const isMobile = ref(false)
+let mq
+
+function updateIsMobile() {
+  if (typeof window === 'undefined') return
+  isMobile.value = mq ? mq.matches : window.matchMedia('(max-width: 900px)').matches
+}
+
+onMounted(() => {
+  if (typeof window === 'undefined') return
+  mq = window.matchMedia('(max-width: 900px)')
+  updateIsMobile()
+  // compat
+  if (mq.addEventListener) mq.addEventListener('change', updateIsMobile)
+  else mq.addListener(updateIsMobile)
+})
+
+onBeforeUnmount(() => {
+  if (!mq) return
+  if (mq.removeEventListener) mq.removeEventListener('change', updateIsMobile)
+  else mq.removeListener(updateIsMobile)
+})
+
+/* =======================
    CITY OPTIONS (con “Todas”)
    ======================= */
 const orderedCities = computed(() => {
@@ -504,7 +531,6 @@ function normalizePredictions(predictions) {
 }
 
 async function onAddressComplete(e) {
-  // e.query
   coverageResult.value = null
   const q = (e.query || '').trim()
   if (q.length < 3) {
@@ -535,7 +561,6 @@ async function onAddressComplete(e) {
 }
 
 function onSelectSuggestionEvent(ev) {
-  // ev.value => { place_id, description }
   const item = ev.value
   if (!item?.place_id) return
   addressQuery.value = item.description
@@ -644,10 +669,35 @@ const isGoogleCity = computed(() => {
 })
 const isParamsCity = computed(() => !isGoogleCity.value)
 
+/* ✅ colapsa el mapa cuando ya hay selección (o modal abierto) en móvil */
+const shouldCollapseMap = computed(() => {
+  if (!isMobile.value) return false
+  const sidebarHasResult =
+    (!!coverageResult.value && isGoogleCity.value) ||
+    (!!selectedNeighborhood.value && isParamsCity.value)
+  const modalIsOpen = !!isModalOpen.value
+  return sidebarHasResult || modalIsOpen
+})
+
+/* ✅ cuando el mapa vuelve a aparecer, Leaflet necesita invalidateSize */
+watch(shouldCollapseMap, async (collapsed) => {
+  if (!collapsed) {
+    await nextTick()
+    setTimeout(() => {
+      try {
+        map.value?.invalidateSize?.()
+        // opcional: recalcular bounds (si ya los tienes)
+        if (initialBounds.value) map.value?.fitBounds?.(initialBounds.value, { padding: [20, 20] })
+      } catch {}
+    }, 380) // debe coincidir con el transition CSS
+  }
+})
+
 /* =======================
    MODAL LOGIC
    ======================= */
 async function openModal(store) {
+  selectedStoreId.value = store.id
   modalStore.value = store
   modalStep.value = 1
   isModalOpen.value = true
@@ -677,7 +727,6 @@ function closeModal() {
 
 function setModalStep(step) {
   modalStep.value = step
-  if (step === 2 && isGoogleCity.value) nextTick(() => {})
 }
 
 async function handleModalOption(orderType) {
@@ -727,7 +776,6 @@ function onSelectModalSuggestionEvent(ev) {
   onSelectModalSuggestion(item)
 }
 
-// ya no redirige: guarda y muestra resumen
 async function onSelectModalSuggestion(s) {
   modalAddressQuery.value = s.description
   modalStep.value = 3
@@ -1076,6 +1124,7 @@ function updateBounds() {
 }
 
 async function onCityChange() {
+  // ✅ al cambiar ciudad: reseteo resultados => el mapa vuelve a aparecer en móvil con animación
   coverageResult.value = null
   addressQuery.value = ''
   suggestions.value = []
@@ -1084,6 +1133,14 @@ async function onCityChange() {
   selectedNeighborhood.value = null
   nbSuggestions.value = []
   if (!selectedCityId.value) paramExactAddress.value = ''
+
+  // marker gmaps reset
+  try {
+    if (dropoffMarker.value && map.value) {
+      map.value.removeLayer(dropoffMarker.value)
+      dropoffMarker.value = null
+    }
+  } catch {}
 
   if (selectedCityId.value && !isGoogleMapsEnabled(selectedCityId.value)) {
     await loadNeighborhoodsByCity(selectedCityId.value)
@@ -1105,8 +1162,9 @@ async function onCityChange() {
   if (!latlngs.length) return
 
   const targetBounds = L.latLngBounds(latlngs)
-  map.value.flyToBounds(initialBounds.value, { padding: [40, 40], animate: true, duration: 0.7 })
 
+  // ✅ "doble animación" como tenías
+  map.value.flyToBounds(initialBounds.value, { padding: [40, 40], animate: true, duration: 0.7 })
   setTimeout(() => {
     if (!map.value || selectedCityId.value !== cityIdAtClick) return
     map.value.flyToBounds(targetBounds, { padding: [40, 40], animate: true, duration: 0.9 })
@@ -1174,21 +1232,17 @@ onMounted(async () => {
   map.value.on('moveend', updateBounds)
   updateBounds()
 })
-
-watch(selectedCityId, (id) => {
-  // Si cambian por UI, forzamos el cambio (ya lo hacemos en @update:modelValue),
-  // pero esto ayuda si lo cambias por código.
-  if (id === 0) return
-})
 </script>
 
 <style scoped>
-/* Mantengo tus estilos de layout y tarjetas.
-   OJO: PrimeVue ya trae estilos de input. Aquí solo ajusto lo mínimo para tu layout. */
-
+/* Layout base */
 .vicio-page { display: flex; min-height: 100vh; width: 100%; overflow-x: hidden; background: var(--bg-page); color: var(--text-primary); font-family: 'Roboto', sans-serif; }
-.vicio-map { flex: 1 1 55%; height: 100vh; background: #e2e8f0; }
+
+.vicio-map-shell { flex: 1 1 55%; height: 100vh; background: #e2e8f0; overflow: hidden; }
+.vicio-map { width: 100%; height: 100%; background: #e2e8f0; }
+
 .vicio-sidebar { flex: 1 1 45%; display: flex; flex-direction: column; background: #ffffff; border-left: 1px solid var(--border-subtle); box-shadow: -5px 0 25px rgba(0, 0, 0, 0.05); max-height: 100vh; }
+
 .sidebar-header { padding: 1.4rem 1.8rem 1rem; border-bottom: 1px solid var(--border-subtle); background: #ffffff; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03); position: relative; z-index: 5; }
 .sidebar-title { font-size: 0.82rem; letter-spacing: 0.18em; font-weight: 800; margin: 0 0 0.9rem; text-transform: uppercase; color: var(--text-primary); display: flex; align-items: center; gap: 0.4rem; }
 .sidebar-title::before { content: "🔥"; font-size: 1rem; }
@@ -1253,12 +1307,12 @@ watch(selectedCityId, (id) => {
 .modal-subtitle { text-align: center; color: #64748b; font-size: 0.9rem; margin-bottom: 1.5rem; }
 
 .modal-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem; }
-.modal-btn { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 1.1rem 1rem; border-radius: 12px; border: 2px solid transparent; background: #f8fafc; }
+.modal-btn { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 1.1rem 1rem; border-radius: 12px;width: 100%;aspect-ratio:  1 / 1; border: 2px solid transparent; background: #f8fafc; }
 .modal-btn--delivery:hover { background: #fff7ed; border-color: #ff6600; color: #c2410c; }
 .modal-btn--pickup:hover { background: #f0fdf4; border-color: #16a34a; color: #15803d; }
 
 .modal-header-nav { margin-bottom: 0.8rem; }
-.modal-back-btn { display: inline-flex; align-items: center; gap: 6px; }
+.modal-back-btn { display: inline-flex; align-items: center; gap: 6px;margin: 1rem; }
 
 .modal-error { margin-top: 10px; color: #ef4444; font-size: 0.85rem; text-align: center; }
 .modal-loading-view { text-align: center; padding: 2rem 0; color: #64748b; }
@@ -1277,12 +1331,46 @@ watch(selectedCityId, (id) => {
 .fade-enter-active, .fade-leave-active { transition: opacity 0.3s; }
 .fade-enter-from, .fade-leave-to { opacity: 0; }
 
+/* ✅ Mobile behavior + animación de colapso */
 @media (max-width: 900px) {
   .vicio-page { flex-direction: column; height: 100vh; overflow: hidden; }
-  .vicio-map { flex: 0 0 40%; height: 40% !important; width: 100%; z-index: 10; }
-  .vicio-sidebar { flex: 1 1 60%; height: 60% !important; width: 100%; overflow: hidden; border-radius: 1.5rem 1.5rem 0 0; margin-top: -1.5rem; z-index: 20; box-shadow: 0 -4px 20px rgba(0,0,0,0.15); }
+
+  /* en vez de tocar #vicio-map directo, animamos el shell */
+  .vicio-map-shell {
+    flex: 0 0 auto;
+    height: 40%;
+    width: 100%;
+    z-index: 10;
+    transition: height 0.38s ease, opacity 0.38s ease, transform 0.38s ease;
+  }
+
+  .vicio-sidebar {
+    flex: 1 1 auto;
+    height: 60%;
+    width: 100%;
+    overflow: hidden;
+    border-radius: 1.5rem 1.5rem 0 0;
+    margin-top: -1.5rem;
+    z-index: 20;
+    box-shadow: 0 -4px 20px rgba(0,0,0,0.15);
+    transition: height 0.38s ease, border-radius 0.38s ease, margin-top 0.38s ease;
+  }
+
+  /* ✅ cuando ya hay barrio seleccionado o dirección seleccionada => ocultar mapa */
+  .vicio-page.is-map-collapsed .vicio-map-shell {
+    height: 0% !important;
+    opacity: 0;
+    transform: translateY(-10px);
+    pointer-events: none;
+  }
+
+  .vicio-page.is-map-collapsed .vicio-sidebar {
+    height: 100% !important;
+    margin-top: 0 !important;
+    border-radius: 0 !important;
+  }
+
   .stores-list { flex: 1; overflow-y: auto; padding-bottom: 2rem; }
-  .sidebar-header { flex-shrink: 0; position: sticky; top: 0; }
   .store-img-wrapper { width: 70px; height: 70px; }
   .store-item { padding: 0.8rem 1rem; }
   .coverage-card { margin: 1rem; }

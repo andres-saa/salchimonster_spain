@@ -17,8 +17,8 @@
         <div style="width: 100vw; height: 100vh;"></div>
       </div>
 
-      <aside class="app-layout__sidebar" :style="layoutVars">
-        <Sidebar />
+      <aside class="app-layout__sidebar" >
+        <sidebar />
       </aside>
 
       <main
@@ -34,7 +34,7 @@
 <script setup>
 import { ref, onMounted, onBeforeUnmount, computed } from 'vue'
 import { useRoute, useSitesStore } from '#imports'
-
+import sidebar from '~/components/sidebar.vue'
 const route = useRoute()
 const siteStore = useSitesStore()
 
@@ -158,7 +158,7 @@ onBeforeUnmount(() => {
 
 /* SIDEBAR: fijo + translate (sube/baja siguiendo al topbar) */
 .app-layout__sidebar {
-  width: 260px;
+  width: 320px;
   color: #fff;
   overflow-y: auto;
   max-height: 100vh;
@@ -181,7 +181,7 @@ onBeforeUnmount(() => {
 .app-layout__content {
   width: 100%;
   padding: 0;
-  padding-left: 260px;
+  padding-left: 320px;
 }
 .app-layout__content--full { padding-left: 0; }
 
