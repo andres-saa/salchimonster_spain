@@ -52,8 +52,6 @@
             </div>
           </div>
 
-          <!-- ✅ (CIUDAD FIJA) Se elimina selector y cualquier control para cambiar ciudad -->
-
           <!-- GOOGLE CITY: AUTOCOMPLETE DIRECCION -->
           <div class="search-wrapper" v-if="isGoogleCity">
             <AutoComplete
@@ -216,7 +214,7 @@
               <img
                 :src="currentImage(store)"
                 @load="loadHighResImage(store)"
-                @error="onImgError(store)"
+                @error="(ev) => onImgError(store, ev)"
                 class="store-img"
                 :alt="t('store_photo_alt')"
               />
@@ -626,7 +624,7 @@ const LOCATIONS_BASE = 'https://api.locations.salchimonster.com'
 const URI = 'https://backend.salchimonster.com'
 const MAIN_DOMAIN = 'salchimonster.com'
 
-const FIXED_CITY_ID = 15 // ✅ CIUDAD FIJA
+const FIXED_CITY_ID = 19 // ✅ CIUDAD FIJA
 
 const map = ref(null)
 const leafletModule = ref(null)
@@ -639,7 +637,6 @@ const cities = ref([])
 const sitePaymentsConfig = ref([])
 const cityMapStatus = ref([])
 
-/* ✅ ciudad fija: 15 */
 const selectedCityId = ref(FIXED_CITY_ID)
 const selectedStoreId = ref(null)
 
@@ -744,11 +741,10 @@ async function onAddressComplete(e) {
       session_token: sessionToken.value
     })
 
-    // ✅ ciudad fija: agrega el nombre si existe
     const c = cities.value.find((x) => Number(x.city_id) === Number(FIXED_CITY_ID))
     if (c) params.append('city', c.city_name)
 
-    const res = await fetch(`${LOCATIONS_BASE}/places/autocomplete?${params}`)
+    const res = await fetch(`${LOCATIONS_BASE}/es/places/autocomplete?${params}`)
     const data = await res.json()
     suggestions.value = normalizePredictions(data.predictions)
   } catch {
@@ -767,7 +763,7 @@ function onSelectSuggestionEvent(ev) {
 async function fetchCoverageDetails(placeId) {
   try {
     const res = await fetch(
-      `${LOCATIONS_BASE}/places/coverage-details?place_id=${placeId}&session_token=${sessionToken.value}&language=${lang.value === 'en' ? 'en' : 'es'}`
+      `${LOCATIONS_BASE}/es/places/coverage-details?place_id=${placeId}&session_token=${sessionToken.value}&language=${lang.value === 'en' ? 'en' : 'es'}`
     )
     const data = await res.json()
     coverageResult.value = data
@@ -953,7 +949,7 @@ async function onModalAddressComplete(e) {
     params.append('session_token', sessionToken.value)
     if (modalStore.value?.city) params.append('city', modalStore.value.city)
 
-    const res = await fetch(`${LOCATIONS_BASE}/places/autocomplete?${params}`)
+    const res = await fetch(`${LOCATIONS_BASE}/es/places/autocomplete?${params}`)
     const data = await res.json()
     modalSuggestions.value = normalizePredictions(data.predictions)
   } catch {
@@ -977,7 +973,7 @@ async function onSelectModalSuggestion(s) {
       session_token: sessionToken.value,
       language: lang.value === 'en' ? 'en' : 'es'
     })
-    const res = await fetch(`${LOCATIONS_BASE}/places/coverage-details?${params}`)
+    const res = await fetch(`${LOCATIONS_BASE}/es/places/coverage-details?${params}`)
     const data = await res.json()
 
     modalCoverageResult.value = data
@@ -1075,9 +1071,9 @@ async function loadStores() {
     stores.value = data
       .filter((s) =>
         s.show_on_web &&
-        s.time_zone === 'America/New_York' &&
+        s.time_zone === 'Europe/Madrid' &&
         s.site_id != 32 &&
-        Number(s.city_id) === Number(FIXED_CITY_ID) // ✅ SOLO CIUDAD 15
+        Number(s.city_id) === Number(FIXED_CITY_ID)
       )
       .map((s) => ({
         id: s.site_id,
@@ -1088,7 +1084,7 @@ async function loadStores() {
         lat: s.location?.[0] || 40.7128,
         lng: s.location?.[1] || -74.0060,
         subdomain: s.subdomain,
-        img_id: s.img_id,
+        img_id: s.img_id, // ✅ ESTE ES EL QUE USAMOS EN read-photo-product/:img_id
         status: 'unknown'
       }))
   } catch {}
@@ -1275,16 +1271,40 @@ function onDispatchParamsDelivery() {
 }
 
 /* =======================
-   IMAGES
+   ✅ IMAGES (CORREGIDO)
+   La imagen principal viene de:
+   ✅  /read-photo-product/:img_id  (img_id viene en site)
+   Fallback: read-product-image/96/site-:id
    ======================= */
 const imgCache = ref({})
-const currentImage = (store) => imgCache.value[store.id] || `${BACKEND_BASE}/read-product-image/96/site-${store.id}`
-const loadHighResImage = (store) => {
-  const i = new Image()
-  i.src = `${BACKEND_BASE}/read-product-image/600/site-${store.id}`
-  i.onload = () => { imgCache.value[store.id] = i.src }
+
+const photoByImgId = (imgId) => `${BACKEND_BASE}/read-photo-product/${imgId}`
+const fallbackBySiteId = (siteId) => `${BACKEND_BASE}/read-product-image/96/site-${siteId}`
+
+const currentImage = (store) => {
+  if (!store) return ''
+  if (imgCache.value[store.id]) return imgCache.value[store.id]
+  if (store.img_id) return photoByImgId(store.img_id)
+  return fallbackBySiteId(store.id)
 }
-const onImgError = (store) => { imgCache.value[store.id] = `${BACKEND_BASE}/read-product-image/96/site-${store.id}` }
+
+const loadHighResImage = (store) => {
+  // “Preload” del mismo endpoint correcto (read-photo-product/:img_id)
+  if (!store?.img_id) return
+  const src = photoByImgId(store.img_id)
+  if (imgCache.value[store.id] === src) return
+  const i = new Image()
+  i.src = src
+  i.onload = () => { imgCache.value[store.id] = src }
+}
+
+const onImgError = (store, ev) => {
+  const fb = fallbackBySiteId(store.id)
+  imgCache.value[store.id] = fb
+  try {
+    if (ev?.target) ev.target.src = fb
+  } catch {}
+}
 
 /* =======================
    UTILS
@@ -1334,17 +1354,16 @@ onMounted(async () => {
   const L = mod.default ?? mod
   leafletModule.value = L
 
-  const nycBounds = L.latLngBounds(
-    L.latLng(39.85, -75.30),
-    L.latLng(40.95, -73.70)
+  const valenciaBounds = L.latLngBounds(
+  
   )
 
   map.value = L.map('vicio-map', {
-    center: [40.7128, -74.0060],
+    center: [39.47822439946202, -0.34998759619972253],
     zoom: 12,
     minZoom: 2,
     maxZoom: 16,
-    maxBounds: nycBounds,
+    maxBounds: valenciaBounds,
     maxBoundsViscosity: 1.0,
     zoomControl: false,
     scrollWheelZoom: false,
@@ -1384,8 +1403,8 @@ onMounted(async () => {
     map.value.setMinZoom(map.value.getBoundsZoom(group.getBounds()))
     initialBounds.value = group.getBounds()
   } else {
-    initialBounds.value = nycBounds
-    map.value.fitBounds(nycBounds, { padding: [40, 40] })
+    initialBounds.value = valenciaBounds
+    map.value.fitBounds(valenciaBounds, { padding: [40, 40] })
   }
 
   map.value.on('moveend', updateBounds)

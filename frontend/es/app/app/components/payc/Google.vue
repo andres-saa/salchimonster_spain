@@ -78,7 +78,7 @@
               <div v-if="tempSiteData.in_coverage" class="result-details">
                 <div class="detail-row">
                   <span>{{ t('delivery_price') }}</span>
-                  <strong>{{ formatCOP(tempSiteData.delivery_cost_cop) }}</strong>
+                  <strong>{{ formatEUR(tempSiteData.delivery_cost_cop) }}</strong>
                 </div>
                 <div class="detail-row">
                   <span>{{ t('distance') }}</span>
@@ -231,7 +231,7 @@
                     <span class="badge badge-delivery">
                       {{
                         siteStore?.location?.neigborhood?.delivery_price != null
-                          ? formatCOP(siteStore.location.neigborhood.delivery_price)
+                          ? formatEUR(siteStore.location.neigborhood.delivery_price)
                           : t('free_shipping')
                       }}
                     </span>
@@ -326,7 +326,7 @@
                       <span class="discount-title">{{ temp_code.discount_name }}</span>
 
                       <span class="discount-amount" v-if="temp_code.amount">
-                        {{ t('you_save') }}: <strong>{{ formatCOP(temp_code.amount) }}</strong>
+                        {{ t('you_save') }}: <strong>{{ formatEUR(temp_code.amount) }}</strong>
                       </span>
                       <span class="discount-amount" v-else-if="temp_code.percent">
                         {{ t('you_save') }}: <strong>{{ temp_code.percent }}%</strong>
@@ -573,14 +573,14 @@ const DICT = {
 }
 const t = (key) => DICT[lang.value]?.[key] || DICT.es[key] || key
 
-const formatCOP = (v) =>
+const formatEUR = (v) =>
   v === 0
     ? (isEnglish.value ? 'Free' : 'Gratis')
-    : new Intl.NumberFormat(lang.value === 'en' ? 'en-CO' : 'es-CO', {
+    : new Intl.NumberFormat(lang.value === 'en' ? 'en-IE' : 'es-ES', {
         style: 'currency',
-        currency: 'COP',
-        maximumFractionDigits: 0
-      }).format(v)
+        currency: 'EUR',
+        maximumFractionDigits: 2 // Euros usually keep cents, unlike COP
+      }).format(v);
 
 /* ================= Modal Google ================= */
 const see_sites = ref(false)
@@ -624,7 +624,7 @@ const onSearchInput = async () => {
   })
 
   try {
-    const res = await (await fetch(`${uri_api_google}/co/places/autocomplete?${params}`)).json()
+    const res = await (await fetch(`${uri_api_google}/es/places/autocomplete?${params}`)).json()
     dir_options.value = (res.predictions || res).filter((p) => p?.place_id)
   } catch (e) {
     dir_options.value = []
@@ -649,7 +649,7 @@ const onAddressSelect = async (item) => {
       session_token: sessionToken.value,
       language: lang.value
     })
-    const details = await (await fetch(`${uri_api_google}/co/places/coverage-details?${params}`)).json()
+    const details = await (await fetch(`${uri_api_google}/es/places/coverage-details?${params}`)).json()
 
     tempSiteData.value = {
       ...details,
