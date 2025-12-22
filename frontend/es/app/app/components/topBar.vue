@@ -149,6 +149,7 @@ const menusAll = computed(() => {
     { label: t.carta || 'Carta', to: `/carta` },
     { label: t.rastrear || 'Rastrear', to: `/rastrear` },
     { label: t.ayuda || 'Ayuda', to: `/pqr` },
+      { label: t.franquicias || 'Franquicias', to: `/franquicias` },
     { label: t.colaboraciones || 'Colaboraciones', to: `/colaboraciones` },
     { label: t.sonando || 'Sonando', to: `/sonando` }
   ]
@@ -413,7 +414,7 @@ watch([menusAll, windowWidth], () => {
             </transition>
           </div>
 
-          <button type="button" class="action-btn search-btn" @click="handleSearch" title="Buscar">
+          <button st type="button" class="action-btn search-btn" @click="handleSearch" title="Buscar">
             <Icon name="mdi:magnify" class="action-icon" />
           </button>
 
@@ -737,6 +738,8 @@ watch([menusAll, windowWidth], () => {
   position: relative;
   display: flex;
   align-items: center;
+  padding: 0;
+  height:2.3rem;
 }
 
 .lang-trigger {
@@ -748,6 +751,7 @@ watch([menusAll, windowWidth], () => {
   border: 1px solid #eee;
   background: rgba(255,255,255,0.85);
   cursor: pointer;
+  height: 100%;
   transition: all 0.2s;
 }
 
@@ -1013,7 +1017,7 @@ watch([menusAll, windowWidth], () => {
 @media (max-width: 900px) {
   .action-btn { width: 44px; height: 44px; border: 1px solid #f0f0f0; }
   .action-icon { font-size: 1.5rem; }
-  .search-btn { margin-right: 0.5rem; }
+  .search-btn { height: 2.5rem;width: 2.5rem; }
   .title-block{max-width: 5rem;}
 }
 

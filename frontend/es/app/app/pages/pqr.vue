@@ -1,22 +1,23 @@
 <template>
   <div class="monster-ayuda-page">
+    <!-- ================== DIALOG: Solicitud recibida ================== -->
     <Transition name="dialog">
       <div v-if="visibleDialog" class="dialog-overlay">
         <div class="dialog-custom">
           <div class="dialog-header">
             <Icon name="mdi:check-circle" class="dialog-header-icon" />
-            <h3 class="dialog-header-title">Solicitud recibida</h3>
+            <h3 class="dialog-header-title">{{ t('dialog_received_title') }}</h3>
           </div>
           <div class="dialog-content">
             <p class="dialog-text">
-              Hemos recibido tu solicitud y ha quedado registrada con el ID:
+              {{ t('dialog_received_text') }}
             </p>
             <p class="last-id">{{ last_id }}</p>
 
             <NuxtLink to="/" class="dialog-link">
-              <button class="btn btn-primary">
+              <button class="btn btn-primary" type="button">
                 <Icon name="mdi:check-circle-outline" class="btn-icon" />
-                Listo
+                {{ t('ok') }}
               </button>
             </NuxtLink>
           </div>
@@ -24,20 +25,21 @@
       </div>
     </Transition>
 
+    <!-- ================== DIALOG: Gracias ================== -->
     <Transition name="dialog">
       <div v-if="visibleDialogGRacias" class="dialog-overlay">
         <div class="dialog-custom">
           <div class="dialog-header dialog-header--success">
             <Icon name="mdi:emoticon-happy-outline" class="dialog-header-icon" />
-            <h3 class="dialog-header-title">¡Gracias por tu calificación!</h3>
+            <h3 class="dialog-header-title">{{ t('dialog_thanks_title') }}</h3>
           </div>
           <div class="dialog-content">
-            <p class="gracias-message">Muchas gracias 💛</p>
+            <p class="gracias-message">{{ t('dialog_thanks_msg') }}</p>
 
             <NuxtLink to="/" class="dialog-link">
-              <button class="btn btn-primary">
+              <button class="btn btn-primary" type="button">
                 <Icon name="mdi:check-circle-outline" class="btn-icon" />
-                Listo
+                {{ t('ok') }}
               </button>
             </NuxtLink>
           </div>
@@ -45,17 +47,16 @@
       </div>
     </Transition>
 
+    <!-- ================== DIALOG: Error ================== -->
     <Transition name="dialog">
       <div v-if="visibleErrorDialog" class="dialog-overlay">
         <div class="dialog-custom">
           <div class="dialog-header dialog-header--error">
             <Icon name="mdi:alert-circle-outline" class="dialog-header-icon" />
-            <h3 class="dialog-header-title">Revisa tu información</h3>
+            <h3 class="dialog-header-title">{{ t('dialog_error_title') }}</h3>
           </div>
           <div class="dialog-content">
-            <p class="dialog-text">
-              {{ errorMessage }}
-            </p>
+            <p class="dialog-text">{{ errorMessage }}</p>
 
             <button
               class="btn btn-primary"
@@ -63,7 +64,7 @@
               @click="visibleErrorDialog = false"
             >
               <Icon name="mdi:close" class="btn-icon" />
-              Entendido
+              {{ t('understood') }}
             </button>
           </div>
         </div>
@@ -75,16 +76,16 @@
         <header class="card-header">
           <div class="card-title-group">
             <h1 class="title">
-              🔥 <b>MONSTER AYUDA</b> 🔥
+              🔥 <b>{{ t('monster_help') }}</b> 🔥
             </h1>
             <p class="subtitle">
-              Cada día trabajamos para darte una mejor experiencia.
+              {{ t('subtitle') }}
             </p>
           </div>
 
           <img
             src="https://www.salchimonster.com/images/kids/3.png"
-            alt="Monster Ayuda"
+            :alt="t('img_alt')"
             class="main-image"
           />
         </header>
@@ -92,79 +93,81 @@
         <div v-if="pending" class="form-skeleton">
           <div class="skeleton skeleton-text" style="width: 40%"></div>
           <div class="skeleton skeleton-input"></div>
-          
+
           <div class="skeleton skeleton-text" style="width: 30%; margin-top: 1rem"></div>
           <div class="skeleton skeleton-input"></div>
 
           <div class="skeleton skeleton-text" style="width: 20%; margin-top: 1rem"></div>
           <div class="skeleton skeleton-input" style="height: 100px"></div>
-          
+
           <div class="form-grid" style="margin-top: 1rem">
-             <div class="skeleton skeleton-input"></div>
-             <div class="skeleton skeleton-input"></div>
-             <div class="skeleton skeleton-input"></div>
-             <div class="skeleton skeleton-input"></div>
+            <div class="skeleton skeleton-input"></div>
+            <div class="skeleton skeleton-input"></div>
+            <div class="skeleton skeleton-input"></div>
+            <div class="skeleton skeleton-input"></div>
           </div>
         </div>
 
         <div v-else class="form-container fade-in">
+          <!-- ================== Tipo ================== -->
           <div class="form-group">
             <label class="field-label">
-              ¿Cómo te podemos ayudar?
+              {{ t('how_can_we_help') }}
               <span class="field-required">*</span>
             </label>
             <select
               class="input input-select input-uppercase"
               v-model.number="selectedType"
             >
-              <option value="" disabled>Selecciona una opción</option>
+              <option value="" disabled>{{ t('select_option') }}</option>
               <option
-                v-for="t in apiData.types.filter(t => t.show_on_web)"
-                :key="t.id"
-                :value="t.id"
+                v-for="tp in apiData.types.filter(tp => tp.show_on_web)"
+                :key="tp.id"
+                :value="tp.id"
               >
-                {{ t.name }}
+                <!-- Si tu backend ya trae name en español, aquí lo dejamos.
+                     Si luego quieres multiidioma real por tipo, se mapea por id. -->
+                {{ tp.name }}
               </option>
             </select>
           </div>
 
+          <!-- ================== Tag (si aplica) ================== -->
           <Transition name="slide-fade">
             <div class="form-group" v-if="selectedType && selectedType !== 8">
               <label class="field-label">
-                Clasifica tu inconveniente
+                {{ t('classify_issue') }}
                 <span class="field-required">*</span>
               </label>
               <select
                 class="input input-select"
                 v-model.number="selectedTagId"
               >
-                <option value="" disabled>Selecciona una opción</option>
+                <option value="" disabled>{{ t('select_option') }}</option>
                 <option v-for="tag in apiData.tags" :key="tag.id" :value="tag.id">
                   {{ tag.name }}
                 </option>
               </select>
 
               <div v-if="currentTag" class="tag-preview">
-                <span
-                  class="tag-circle"
-                  :style="{ backgroundColor: currentTag.color }"
-                ></span>
+                <span class="tag-circle" :style="{ backgroundColor: currentTag.color }"></span>
                 <span class="tag-name">{{ currentTag.name }}</span>
               </div>
             </div>
           </Transition>
 
+          <!-- ================== Sede ================== -->
           <Transition name="slide-fade">
             <div class="form-group" v-if="selectedType">
               <label class="field-label">
-                Sede
+                {{ t('site') }}
                 <span class="field-required">*</span>
               </label>
               <select
                 class="input input-select"
                 v-model.number="selecteSite"
               >
-                <option value="" disabled>Selecciona una sede</option>
+                <option value="" disabled>{{ t('select_site') }}</option>
                 <option
                   v-for="s in apiData.sites.filter(s => s.show_on_web && s.time_zone == 'America/Bogota')"
                   :key="s.site_id"
@@ -176,26 +179,25 @@
             </div>
           </Transition>
 
+          <!-- ================== Order ID (solo tipo 9) ================== -->
           <div class="form-group" v-if="selectedType === 9">
             <label class="field-label">
-              ID de la orden
-              <span class="field-hint">Ejemplo: <b>BRE-0554</b></span>
+              {{ t('order_id') }}
+              <span class="field-hint">{{ t('order_id_hint') }} <b>BRE-0554</b></span>
               <span class="field-required">*</span>
             </label>
             <input
               v-model="orderId"
               class="input"
               type="text"
-              placeholder="Escribe el número de la orden"
+              :placeholder="t('order_id_placeholder')"
             />
           </div>
 
-          <div
-            class="form-group rating-section"
-            v-if="selectedType === 8"
-          >
+          <!-- ================== Rating (solo tipo 8) ================== -->
+          <div class="form-group rating-section" v-if="selectedType === 8">
             <label class="field-label">
-              Califícanos
+              {{ t('rate_us') }}
               <span class="field-required">*</span>
             </label>
             <div class="rating-stars">
@@ -215,75 +217,74 @@
             </div>
           </div>
 
+          <!-- ================== Comentarios ================== -->
           <Transition name="slide-fade">
             <div class="form-group" v-if="selectedType">
               <label class="field-label">
-                Comentarios
+                {{ t('comments') }}
                 <span v-if="selectedType !== 8" class="field-required">*</span>
               </label>
               <textarea
                 v-model="comments"
                 rows="4"
                 class="input textarea"
-                placeholder="Cuéntanos qué sucedió o cómo fue tu experiencia"
+                :placeholder="t('comments_placeholder')"
               ></textarea>
             </div>
           </Transition>
 
+          <!-- ================== Datos usuario ================== -->
           <Transition name="slide-fade">
-            <div
-              class="form-grid"
-              v-if="selectedType"
-            >
+            <div class="form-grid" v-if="selectedType">
               <div class="form-group">
                 <label class="field-label">
-                  Nombre
+                  {{ t('name') }}
                   <span v-if="selectedType !== 8" class="field-required">*</span>
                 </label>
                 <input
                   v-model="userName"
                   class="input"
                   type="text"
-                  placeholder="Escribe tu nombre"
+                  :placeholder="t('name_placeholder')"
                 />
               </div>
 
               <div class="form-group">
                 <label class="field-label">
-                  Número de teléfono
+                  {{ t('phone') }}
                   <span v-if="selectedType !== 8" class="field-required">*</span>
                 </label>
                 <input
                   v-model="userPhone"
                   class="input"
                   type="tel"
-                  placeholder="Celular o número de contacto"
+                  :placeholder="t('phone_placeholder')"
                 />
               </div>
 
               <div class="form-group">
                 <label class="field-label">
-                  Correo electrónico
+                  {{ t('email') }}
                   <span v-if="selectedType !== 8" class="field-required">*</span>
                 </label>
                 <input
                   v-model="userEmail"
                   class="input"
                   type="email"
-                  placeholder="Escribe tu correo"
+                  :placeholder="t('email_placeholder')"
                 />
               </div>
 
               <div class="form-group">
                 <label class="field-label">
-                  Dirección
+                  {{ t('address') }}
                   <span v-if="selectedType !== 8" class="field-required">*</span>
                 </label>
                 <input
                   v-model="userAddress"
                   class="input"
                   type="text"
-                  placeholder="Dirección donde ocurrió el servicio"
+                  :placeholder="t('address_placeholder')"
                 />
               </div>
             </div>
@@ -291,7 +292,7 @@
 
           <div class="form-footer">
             <p class="form-note">
-              <span class="field-required">*</span> Campos obligatorios
+              <span class="field-required">*</span> {{ t('required_fields') }}
             </p>
             <button
               class="btn btn-primary"
@@ -301,7 +302,7 @@
             >
               <Icon v-if="sending" name="mdi:loading" class="btn-icon spin" />
               <Icon v-else name="mdi:send" class="btn-icon" />
-              {{ sending ? 'Enviando...' : 'Enviar solicitud' }}
+              {{ sending ? t('sending') : t('send_request') }}
             </button>
           </div>
         </div>
@@ -311,18 +312,143 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
+import { useUserStore } from '#imports'
 import { URI } from '~/service/conection'
 
-/* --- STATE UI --- */
+const userStore = useUserStore()
+
+/* ================= i18n ================= */
+const lang = computed(() =>
+  (userStore?.lang?.name || 'es').toString().toLowerCase() === 'en' ? 'en' : 'es'
+)
+
+const DICT = {
+  es: {
+    monster_help: 'MONSTER AYUDA',
+    subtitle: 'Cada día trabajamos para darte una mejor experiencia.',
+    img_alt: 'Monster Ayuda',
+
+    how_can_we_help: '¿Cómo te podemos ayudar?',
+    select_option: 'Selecciona una opción',
+    classify_issue: 'Clasifica tu inconveniente',
+    site: 'Sede',
+    select_site: 'Selecciona una sede',
+
+    order_id: 'ID de la orden',
+    order_id_hint: 'Ejemplo:',
+    order_id_placeholder: 'Escribe el número de la orden',
+
+    rate_us: 'Califícanos',
+
+    comments: 'Comentarios',
+    comments_placeholder: 'Cuéntanos qué sucedió o cómo fue tu experiencia',
+
+    name: 'Nombre',
+    name_placeholder: 'Escribe tu nombre',
+
+    phone: 'Número de teléfono',
+    phone_placeholder: 'Celular o número de contacto',
+
+    email: 'Correo electrónico',
+    email_placeholder: 'Escribe tu correo',
+
+    address: 'Dirección',
+    address_placeholder: 'Dirección donde ocurrió el servicio',
+
+    required_fields: 'Campos obligatorios',
+    sending: 'Enviando...',
+    send_request: 'Enviar solicitud',
+
+    // dialogs
+    dialog_received_title: 'Solicitud recibida',
+    dialog_received_text: 'Hemos recibido tu solicitud y ha quedado registrada con el ID:',
+    dialog_thanks_title: '¡Gracias por tu calificación!',
+    dialog_thanks_msg: 'Muchas gracias 💛',
+    dialog_error_title: 'Revisa tu información',
+
+    ok: 'Listo',
+    understood: 'Entendido',
+
+    // errors
+    err_select_type: 'Por favor, selecciona un tipo de requerimiento.',
+    err_order_id: 'Por favor, ingresa el ID de la orden.',
+    err_select_tag: 'Por favor, clasifica tu inconveniente.',
+    err_comments: 'Por favor, cuéntanos lo sucedido.',
+    err_user_fields: 'Por favor, completa los campos obligatorios: nombre, teléfono, dirección y correo electrónico.',
+    err_select_site: 'Por favor, selecciona la sede.',
+    err_rating: 'Por favor, selecciona una calificación.',
+    err_submit: 'Hubo un error al enviar tu solicitud. Inténtalo de nuevo.'
+  },
+  en: {
+    monster_help: 'MONSTER HELP',
+    subtitle: 'Every day we work to give you a better experience.',
+    img_alt: 'Monster Help',
+
+    how_can_we_help: 'How can we help you?',
+    select_option: 'Select an option',
+    classify_issue: 'Classify your issue',
+    site: 'Site',
+    select_site: 'Select a site',
+
+    order_id: 'Order ID',
+    order_id_hint: 'Example:',
+    order_id_placeholder: 'Type your order ID',
+
+    rate_us: 'Rate us',
+
+    comments: 'Comments',
+    comments_placeholder: 'Tell us what happened or how your experience was',
+
+    name: 'Name',
+    name_placeholder: 'Type your name',
+
+    phone: 'Phone number',
+    phone_placeholder: 'Mobile or contact number',
+
+    email: 'Email',
+    email_placeholder: 'Type your email',
+
+    address: 'Address',
+    address_placeholder: 'Address where the service happened',
+
+    required_fields: 'Required fields',
+    sending: 'Sending...',
+    send_request: 'Send request',
+
+    // dialogs
+    dialog_received_title: 'Request received',
+    dialog_received_text: 'We received your request and it has been registered with ID:',
+    dialog_thanks_title: 'Thanks for your rating!',
+    dialog_thanks_msg: 'Thank you so much 💛',
+    dialog_error_title: 'Check your information',
+
+    ok: 'Done',
+    understood: 'Got it',
+
+    // errors
+    err_select_type: 'Please select a request type.',
+    err_order_id: 'Please enter the order ID.',
+    err_select_tag: 'Please classify your issue.',
+    err_comments: 'Please tell us what happened.',
+    err_user_fields: 'Please complete the required fields: name, phone, address and email.',
+    err_select_site: 'Please select the site.',
+    err_rating: 'Please select a rating.',
+    err_submit: 'There was an error submitting your request. Please try again.'
+  }
+}
+
+const t = (key) => DICT[lang.value]?.[key] || DICT.es[key] || key
+
+/* ================= UI State ================= */
 const visibleDialog = ref(false)
 const visibleDialogGRacias = ref(false)
 const visibleErrorDialog = ref(false)
 const errorMessage = ref('')
-const sending = ref(false) // Estado de carga del envío
+const sending = ref(false)
 const last_id = ref('')
 
-/* --- STATE FORM --- */
+/* ================= Form State ================= */
 const selectedType = ref(null)
 const selecteSite = ref(null)
 const selectedTagId = ref(null)
@@ -334,79 +460,69 @@ const userAddress = ref('')
 const comments = ref('')
 const rating = ref(0)
 
-/* --- DATA FETCHING OPTIMIZADO (SSR + CACHE) --- */
-// Usamos useAsyncData para cargar todo en paralelo antes del render
-// Si configuras ISR en nuxt.config, esto se revalida cada hora
-const { data: apiData, pending, error: fetchError } = await useAsyncData(
-  'monster-help-data', 
+/* ================= Data Fetch (SSR) ================= */
+const { data: apiData, pending } = await useAsyncData(
+  'monster-help-data',
   async () => {
     const [types, sites, tags] = await Promise.all([
       $fetch(`${URI}/get-all-pqrs-types`),
       $fetch(`${URI}/sites`),
       $fetch(`${URI}/get-all-pqr-tags`)
     ])
-    return { 
-      types: types || [], 
-      sites: sites || [], 
-      tags: tags || [] 
-    }
+    return { types: types || [], sites: sites || [], tags: tags || [] }
   },
   {
-    lazy: true, // Permite cargar la UI (Skeletons) mientras llega la data
-    server: true, // Habilita SSR
-    default: () => ({ types: [], sites: [], tags: [] }) // Valor inicial para evitar crash
+    lazy: true,
+    server: true,
+    default: () => ({ types: [], sites: [], tags: [] })
   }
 )
 
-/* --- COMPUTED --- */
-// Tag actual seleccionado
+/* ================= Computed ================= */
 const currentTag = computed(() => {
   if (!apiData.value?.tags) return null
-  return apiData.value.tags.find(t => t.id === selectedTagId.value) || null
+  return apiData.value.tags.find((tg) => tg.id === selectedTagId.value) || null
 })
 
-// Inicialización de valores por defecto cuando llega la data
-// Watcher opcional si necesitas setear un valor por defecto apenas cargue
-// En este caso, si types carga, seteamos el 9 por defecto
-if (!pending.value && apiData.value?.types?.length) {
-    selectedType.value = 9
-} 
-// O usamos watch para cuando lazy termine
-import { watch } from 'vue'
-watch(pending, (newVal) => {
-    if (!newVal && apiData.value?.types) {
-         selectedType.value = 9
+/* Default selectedType (tu lógica original, pero segura) */
+watch(
+  () => pending.value,
+  (isPending) => {
+    if (!isPending && apiData.value?.types?.length) {
+      if (selectedType.value == null) selectedType.value = 9
     }
-})
+  },
+  { immediate: true }
+)
 
-/* --- ACTIONS --- */
+/* ================= Helpers ================= */
 const showError = (msg) => {
   errorMessage.value = msg
   visibleErrorDialog.value = true
 }
 
+/* ================= Submit ================= */
 const handleSubmit = async () => {
-  if (sending.value) return // Evitar doble click
+  if (sending.value) return
 
-  // VALIDACIONES
-  if (!selectedType.value) return showError('Por favor, selecciona un tipo de requerimiento.')
-  if (selectedType.value === 9 && !orderId.value) return showError('Por favor, ingresa el ID de la orden.')
-  if (selectedType.value !== 8 && !selectedTagId.value) return showError('Por favor, clasifica tu inconveniente.')
-  if (selectedType.value !== 8 && !comments.value) return showError('Por favor, cuéntanos lo sucedido.')
-  
+  if (!selectedType.value) return showError(t('err_select_type'))
+  if (selectedType.value === 9 && !orderId.value) return showError(t('err_order_id'))
+  if (selectedType.value !== 8 && !selectedTagId.value) return showError(t('err_select_tag'))
+  if (selectedType.value !== 8 && !comments.value) return showError(t('err_comments'))
+
   if (selectedType.value !== 8 && (!userName.value || !userPhone.value || !userAddress.value || !userEmail.value)) {
-    return showError('Por favor, completa los campos obligatorios: nombre, teléfono, dirección y correo electrónico.')
+    return showError(t('err_user_fields'))
   }
 
-  if (!selecteSite.value) return showError('Por favor, selecciona la sede.')
-  if (selectedType.value === 8 && !rating.value) return showError('Por favor, selecciona una calificación.')
+  if (!selecteSite.value) return showError(t('err_select_site'))
+  if (selectedType.value === 8 && !rating.value) return showError(t('err_rating'))
 
   sending.value = true
 
-  const data = {
+  const payload = {
     data: {
       reques_type_id: selectedType.value,
-      content: comments.value || 'Sin comentarios',
+      content: comments.value || (lang.value === 'en' ? 'No comments' : 'Sin comentarios'),
       channel_id: 1,
       rating: rating.value || null,
       site_id: selecteSite.value || null,
@@ -427,10 +543,9 @@ const handleSubmit = async () => {
   try {
     const res = await $fetch(`${URI}/create-pqr`, {
       method: 'POST',
-      body: data
+      body: payload
     })
-    
-    // Asumiendo que $fetch lanza error si falla, o validamos respuesta
+
     last_id.value = res?.pqr_id?.[0]?.id || ''
 
     if (selectedType.value === 8) {
@@ -438,18 +553,15 @@ const handleSubmit = async () => {
     } else {
       visibleDialog.value = true
     }
-    
-    // Reset form opcional
-    // comments.value = ''
-    // rating.value = 0
-  } catch (error) {
-    console.error('Error al enviar:', error)
-    showError('Hubo un error al enviar tu solicitud. Inténtalo de nuevo.')
+  } catch (err) {
+    console.error('Error al enviar:', err)
+    showError(t('err_submit'))
   } finally {
     sending.value = false
   }
 }
 </script>
+
 
 <style scoped>
 :root {

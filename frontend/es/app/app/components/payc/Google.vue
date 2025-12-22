@@ -8,9 +8,9 @@
             <Icon name="mdi:rocket-launch-outline" size="3em" class="rocket-icon" />
             <div class="pulse-ring"></div>
           </div>
-          <h2 class="redirect-title">Te estamos llevando a</h2>
+          <h2 class="redirect-title">{{ t('redirect_taking_you_to') }}</h2>
           <h3 class="redirect-store">{{ targetSiteName }}</h3>
-          <p class="redirect-subtitle">Transfiriendo tu pedido...</p>
+          <p class="redirect-subtitle">{{ t('redirect_transferring_order') }}</p>
         </div>
       </div>
     </Transition>
@@ -57,7 +57,7 @@
 
             <div v-if="isValidating" class="loading-state">
               <Icon name="svg-spinners:90-ring-with-bg" size="32" />
-              <span>Verificando cobertura...</span>
+              <span>{{ t('checking_coverage') }}</span>
             </div>
 
             <div
@@ -91,14 +91,18 @@
               </div>
 
               <div v-else class="error-message">
-                <p>{{ lang === 'en' ? tempSiteData.error?.message_en : tempSiteData.error?.message_es }}</p>
+                <p>{{ isEnglish ? tempSiteData.error?.message_en : tempSiteData.error?.message_es }}</p>
               </div>
             </div>
           </div>
 
           <footer class="modal-footer">
             <button class="btn btn-secondary" @click="closeModal">{{ t('cancel') }}</button>
-            <button class="btn btn-primary" @click="confirmSelection" :disabled="!tempSiteData?.in_coverage || isRedirecting">
+            <button
+              class="btn btn-primary"
+              @click="confirmSelection"
+              :disabled="!tempSiteData?.in_coverage || isRedirecting"
+            >
               {{ t('save') }}
             </button>
           </footer>
@@ -130,17 +134,17 @@
                   v-model="orderTypeIdStr"
                   class="hidden-radio"
                 />
-                <span class="tab-label">{{ opt.name }}</span>
+                <span class="tab-label">{{ displayOrderTypeName(opt) }}</span>
               </label>
             </div>
           </div>
           <div v-else class="card" style="text-align:center; color: #666;">
-            <p>{{ lang === 'en' ? 'Loading delivery options...' : 'Cargando opciones de entrega...' }}</p>
+            <p>{{ t('loading_delivery_options') }}</p>
           </div>
 
           <!-- ================== DATOS PERSONALES ================== -->
           <section class="card form-section">
-            <h2 class="section-title">Datos Personales</h2>
+            <h2 class="section-title">{{ t('personal_data') }}</h2>
 
             <div class="form-row">
               <div class="form-group full">
@@ -157,7 +161,7 @@
                   <div class="country-select" v-click-outside="() => (showCountryDropdown = false)">
                     <button type="button" class="country-trigger" @click="toggleCountryDropdown">
                       <img v-if="user.user.phone_code?.flag" :src="user.user.phone_code.flag" alt="flag" />
-                      <span>{{ user.user.phone_code?.dialCode || '+57' }}</span>
+                      <span>{{ user.user.phone_code?.dialCode || (isEnglish ? '+1' : '+57') }}</span>
                       <Icon name="mdi:chevron-down" size="14" />
                     </button>
 
@@ -184,7 +188,7 @@
                     class="input-modern input-phone"
                     v-model="user.user.phone_number"
                     @blur="formatPhoneOnBlur"
-                    :placeholder="'300 000 0000'"
+                    :placeholder="t('phone_placeholder')"
                   />
                 </div>
 
@@ -203,7 +207,7 @@
             <h2 class="section-title">
               {{
                 [2, 6].includes(user.user.order_type?.id)
-                  ? (user.user.order_type?.id === 6 ? 'En el Local' : t('site_recoger'))
+                  ? (user.user.order_type?.id === 6 ? t('in_store') : t('site_recoger'))
                   : t('address')
               }}
             </h2>
@@ -228,11 +232,12 @@
                       {{
                         siteStore?.location?.neigborhood?.delivery_price != null
                           ? formatCOP(siteStore.location.neigborhood.delivery_price)
-                          : (lang === 'en' ? 'Free Shipping' : 'Envío Gratis')
+                          : t('free_shipping')
                       }}
                     </span>
+
                     <span v-if="siteStore?.location?.site?.site_name" class="site-name">
-                      • {{ lang === 'en' ? 'From' : 'Desde' }} {{ siteStore.location.site.site_name }}
+                      • {{ t('from') }} {{ siteStore.location.site.site_name }}
                     </span>
                   </div>
                 </div>
@@ -259,16 +264,16 @@
                 class="form-group mt-3"
               >
                 <label>{{ t('vehicle_plate') }}</label>
-                <input type="text" class="input-modern" v-model="user.user.placa" placeholder="ABC-123" />
+                <input type="text" class="input-modern" v-model="user.user.placa" :placeholder="t('plate_placeholder')" />
               </div>
             </div>
           </section>
 
           <!-- ================== PAGO & DETALLES ================== -->
           <section class="card form-section">
-            <h2 class="section-title">Pago & Detalles</h2>
+            <h2 class="section-title">{{ t('payment_details') }}</h2>
 
-            <!-- ✅ CUPONES (NO se valida por cada caracter; SOLO con "Aplicar") -->
+            <!-- ✅ CUPONES -->
             <div class="coupon-wrapper">
               <div class="coupon-toggle" @click="toggleCouponUi">
                 <div class="coupon-left">
@@ -294,6 +299,7 @@
                     class="btn-coupon remove"
                     @click="clearCoupon"
                     type="button"
+                    :title="t('remove_coupon')"
                   >
                     <Icon name="mdi:trash-can-outline" />
                   </button>
@@ -305,11 +311,10 @@
                     :disabled="!temp_discount || isApplyingCoupon"
                     type="button"
                   >
-                    {{ isApplyingCoupon ? (lang === 'en' ? 'Applying...' : 'Aplicando...') : (lang === 'en' ? 'Apply' : 'Aplicar') }}
+                    {{ isApplyingCoupon ? t('applying') : t('apply') }}
                   </button>
                 </div>
 
-                <!-- ✅ Feedback (incluye error backend {"detail":"..."}) -->
                 <div
                   v-if="temp_code?.status"
                   class="coupon-feedback"
@@ -319,11 +324,12 @@
                   <div class="feedback-info">
                     <template v-if="temp_code.status === 'active'">
                       <span class="discount-title">{{ temp_code.discount_name }}</span>
+
                       <span class="discount-amount" v-if="temp_code.amount">
-                        Ahorras: <strong>{{ formatCOP(temp_code.amount) }}</strong>
+                        {{ t('you_save') }}: <strong>{{ formatCOP(temp_code.amount) }}</strong>
                       </span>
                       <span class="discount-amount" v-else-if="temp_code.percent">
-                        Ahorras: <strong>{{ temp_code.percent }}%</strong>
+                        {{ t('you_save') }}: <strong>{{ temp_code.percent }}%</strong>
                       </span>
                     </template>
 
@@ -331,8 +337,8 @@
                       <span>
                         {{
                           temp_code.status === 'invalid_site'
-                            ? (lang === 'en' ? 'Not valid for this site' : 'No válido en esta sede')
-                            : (temp_code.detail || (lang === 'en' ? 'Invalid code' : 'Código no válido'))
+                            ? t('coupon_invalid_site')
+                            : (temp_code.detail || t('invalid_code'))
                         }}
                       </span>
                     </template>
@@ -343,15 +349,22 @@
 
             <!-- PAGO -->
             <div class="form-group" v-if="computedPaymentOptions.length > 0">
-                            <label>{{ t('payment_method') }}</label>
-            
+              <label>{{ t('payment_method') }}</label>
+
               <Select
-              v-model="user.user.payment_method_option"
-              :options="computedPaymentOptions"
-              optionLabel="name"
-              placeholder="Selecciona una opción"
-              class="pv-select pv-select-payment input-modern with-icon"
-            />
+                v-model="user.user.payment_method_option"
+                :options="computedPaymentOptions"
+                optionLabel="name"
+                :placeholder="t('select_option')"
+                class="pv-select pv-select-payment input-modern with-icon"
+              >
+                <template #value="{ value, placeholder }">
+                  <span>{{ value ? displayPaymentMethodName(value) : placeholder }}</span>
+                </template>
+                <template #option="{ option }">
+                  <span>{{ displayPaymentMethodName(option) }}</span>
+                </template>
+              </Select>
             </div>
 
             <div class="form-group" style="margin-top: 1rem;">
@@ -361,14 +374,12 @@
                 rows="3"
                 v-model="store.order_notes"
                 :placeholder="t('additional_notes')"
-              ></Textarea>
+              />
             </div>
           </section>
         </div>
 
-        
-          <resumen />
- 
+        <resumen />
       </div>
     </div>
   </div>
@@ -428,6 +439,12 @@ const getErrorDetail = (payload) => {
   return null
 }
 
+const pickByLang = (esValue, enValue) => {
+  const es = String(esValue || '')
+  const en = String(enValue || '')
+  return isEnglish.value ? (en || es) : (es || en)
+}
+
 /* ================= Config ================= */
 const uri_api_google = 'https://api.locations.salchimonster.com'
 const sitePaymentsComplete = ref([])
@@ -437,68 +454,128 @@ const MAIN_DOMAIN = 'salchimonster.com'
 const isRedirecting = ref(false)
 const targetSiteName = ref('')
 
-/* ================= i18n ================= */
-const lang = computed(() =>
-  (user?.lang?.name || 'es').toString().toLowerCase() === 'en' ? 'en' : 'es'
-)
+/* ================= i18n (DESDE STORE) ================= */
+const lang = computed(() => {
+  const raw = (user?.lang?.name || user?.user?.lang?.name || 'es').toString().toLowerCase()
+  return raw === 'en' ? 'en' : 'es'
+})
+const isEnglish = computed(() => lang.value === 'en')
 
 const DICT = {
   es: {
     finalize_purchase: 'Finalizar Compra',
+    loading_delivery_options: 'Cargando opciones de entrega...',
+    redirect_taking_you_to: 'Te estamos llevando a',
+    redirect_transferring_order: 'Transfiriendo tu pedido...',
+
+    personal_data: 'Datos Personales',
+    payment_details: 'Pago & Detalles',
+
     name: 'Nombre Completo',
     phone: 'Celular',
+    phone_placeholder: '300 000 0000',
+    email: 'Correo Electrónico',
+
     site_recoger: 'Sede para Recoger',
-    payment_method: 'Método de Pago',
-    notes: 'Notas del pedido',
-    code: '¿Tienes un cupón?',
+    in_store: 'En el Local',
+    address: 'Dirección de Entrega',
+
     site_selector: 'Seleccionar ubicación',
     address_placeholder: 'Buscar dirección (Ej: Calle 123...)',
+
     in_coverage: '¡Estás en zona de cobertura!',
     not_in_coverage: 'Fuera de cobertura',
+    checking_coverage: 'Verificando cobertura...',
+
     distance: 'Distancia',
     km: 'km',
-    ships_from_site: 'Te enviamos desde ',
+    ships_from_site: 'Te enviamos desde',
     delivery_price: 'Costo Domicilio',
+
     cancel: 'Cancelar',
     save: 'Confirmar ubicación',
-    email: 'Correo Electrónico',
+
     vehicle_plate: 'Placa del vehículo',
+    plate_placeholder: 'ABC-123',
+
+    notes: 'Notas del pedido',
     additional_notes: 'Ej: Timbre dañado, dejar en portería...',
+    payment_method: 'Método de Pago',
+    select_option: 'Selecciona una opción',
+
+    code: '¿Tienes un cupón?',
+    code_placeholder: 'Ingresa el código',
+    apply: 'Aplicar',
+    applying: 'Aplicando...',
+    remove_coupon: 'Quitar cupón',
+    you_save: 'Ahorras',
+    invalid_code: 'Código no válido',
+    coupon_invalid_site: 'No válido en esta sede',
+
     search_country_or_code: 'Buscar país...',
-    address: 'Dirección de Entrega',
-    code_placeholder: 'Ingresa el código'
+    free_shipping: 'Envío Gratis',
+    from: 'Desde'
   },
   en: {
     finalize_purchase: 'Checkout',
+    loading_delivery_options: 'Loading delivery options...',
+    redirect_taking_you_to: 'Taking you to',
+    redirect_transferring_order: 'Transferring your order...',
+
+    personal_data: 'Personal Details',
+    payment_details: 'Payment & Details',
+
     name: 'Full Name',
     phone: 'Mobile Phone',
+    phone_placeholder: '300 000 0000',
+    email: 'Email',
+
     site_recoger: 'Pickup Location',
-    payment_method: 'Payment Method',
-    notes: 'Order Notes',
-    code: 'Have a coupon?',
+    in_store: 'In Store',
+    address: 'Delivery Address',
+
     site_selector: 'Select Location',
     address_placeholder: 'Search address...',
+
     in_coverage: 'Great! In coverage area',
     not_in_coverage: 'Out of coverage',
+    checking_coverage: 'Checking coverage...',
+
     distance: 'Distance',
     km: 'km',
     ships_from_site: 'Shipping from',
     delivery_price: 'Delivery Fee',
+
     cancel: 'Cancel',
     save: 'Confirm Location',
-    email: 'Email',
+
     vehicle_plate: 'Vehicle Plate',
+    plate_placeholder: 'ABC-123',
+
+    notes: 'Order Notes',
     additional_notes: 'Ex: Doorbell broken...',
+    payment_method: 'Payment Method',
+    select_option: 'Select an option',
+
+    code: 'Have a coupon?',
+    code_placeholder: 'Enter code',
+    apply: 'Apply',
+    applying: 'Applying...',
+    remove_coupon: 'Remove coupon',
+    you_save: 'You save',
+    invalid_code: 'Invalid code',
+    coupon_invalid_site: 'Not valid for this site',
+
     search_country_or_code: 'Search country...',
-    address: 'Delivery Address',
-    code_placeholder: 'Enter code'
+    free_shipping: 'Free Shipping',
+    from: 'From'
   }
 }
 const t = (key) => DICT[lang.value]?.[key] || DICT.es[key] || key
 
 const formatCOP = (v) =>
   v === 0
-    ? 'Gratis'
+    ? (isEnglish.value ? 'Free' : 'Gratis')
     : new Intl.NumberFormat(lang.value === 'en' ? 'en-CO' : 'es-CO', {
         style: 'currency',
         currency: 'COP',
@@ -615,7 +692,6 @@ const applySiteSelection = (data) => {
   user.user.lng = data.lng
   user.user.place_id = data.place_id
 
-  // sitio real
   siteStore.location.site = data.nearest?.site || siteStore.location.site
   store.address_details = data
 
@@ -629,7 +705,7 @@ const applySiteSelection = (data) => {
 const handleSiteChange = async (newData) => {
   isRedirecting.value = true
   const site = newData.nearest?.site
-  targetSiteName.value = site?.site_name || 'Nueva Sede'
+  targetSiteName.value = site?.site_name || (isEnglish.value ? 'New Location' : 'Nueva Sede')
 
   try {
     const hash = generateUUID()
@@ -658,7 +734,7 @@ const handleSiteChange = async (newData) => {
 
     const subdomain = site?.subdomain
     if (!subdomain) {
-      alert('Lo sentimos, no pudimos localizar la dirección web de esta sede.')
+      alert(isEnglish.value ? 'Sorry, this location has no web address.' : 'Lo sentimos, no pudimos localizar la dirección web de esta sede.')
       isRedirecting.value = false
       return
     }
@@ -672,7 +748,7 @@ const handleSiteChange = async (newData) => {
     window.location.href = targetUrl
   } catch (error) {
     console.error('Error switching site:', error)
-    alert('Ocurrió un error al cambiar de sede. Intenta nuevamente.')
+    alert(isEnglish.value ? 'Error switching location. Please try again.' : 'Ocurrió un error al cambiar de sede. Intenta nuevamente.')
     isRedirecting.value = false
   }
 }
@@ -742,7 +818,7 @@ watch(
       user.user.phone_e164 = phone.number
     } else {
       user.user.phone_e164 = null
-      phoneError.value = lang.value === 'en' ? 'Invalid phone number' : 'Número inválido'
+      phoneError.value = isEnglish.value ? 'Invalid phone number' : 'Número inválido'
     }
   },
   { immediate: true }
@@ -756,6 +832,10 @@ const computedOrderTypesVisible = computed(() => {
   if (!siteConfig || !siteConfig.order_types) return []
   return siteConfig.order_types.filter((ot) => ot.methods && ot.methods.length > 0)
 })
+
+const displayOrderTypeName = (opt) => {
+  return pickByLang(opt?.name, opt?.english_name || opt?.name_en || '')
+}
 
 const orderTypeIdStr = computed({
   get: () => (user.user.order_type?.id ? String(user.user.order_type.id) : null),
@@ -772,6 +852,10 @@ const computedPaymentOptions = computed(() => {
   const selectedOrderType = computedOrderTypesVisible.value.find((ot) => Number(ot.id) === Number(typeId))
   return selectedOrderType?.methods || []
 })
+
+const displayPaymentMethodName = (m) => {
+  return pickByLang(m?.name, m?.english_name || m?.name_en || '')
+}
 
 const ensureValidOrderTypeForCurrentSite = () => {
   const list = computedOrderTypesVisible.value
@@ -803,13 +887,7 @@ watch(
   }
 )
 
-/* ================= CUPONES (FIX) =================
-   ✅ Switch YA NO se traba:
-   - Ahora el switch depende SOLO de store.coupon_ui.enabled
-   - Si el usuario lo apaga: removeCoupon + enabled=false
-   ✅ Validación SOLO con botón "Aplicar" (no por cada tecla)
-   ✅ Muestra error backend: {"detail":"..."} en el feedback
-*/
+/* ================= CUPONES (FIX) ================= */
 const have_discount = computed({
   get: () => !!store.coupon_ui?.enabled,
   set: (v) => store.setCouponUi({ enabled: !!v })
@@ -827,19 +905,14 @@ const toggleCouponUi = () => {
   const next = !have_discount.value
 
   if (!next) {
-    // apagar
     have_discount.value = false
     temp_code.value = {}
     store.removeCoupon()
-    // opcional: limpiar lo escrito al apagar
-    // store.setCouponUi({ draft_code: '' })
   } else {
-    // encender
     have_discount.value = true
   }
 }
 
-// Mantén UI coherente cuando se aplica/quita cupón desde otros lugares
 watch(
   () => store.applied_coupon,
   (newCoupon) => {
@@ -848,7 +921,7 @@ watch(
       temp_code.value = {
         ...newCoupon,
         status: 'active',
-        discount_name: newCoupon.discount_name || newCoupon.name || 'Descuento'
+        discount_name: newCoupon.discount_name || newCoupon.name || (isEnglish.value ? 'Discount' : 'Descuento')
       }
     } else {
       temp_code.value = {}
@@ -857,22 +930,21 @@ watch(
   { immediate: true, deep: true }
 )
 
-// Si cambias de sede y ya hay cupón aplicado, revalida silencioso (opcional)
 watch(
   () => siteStore.location?.site?.site_id,
   async () => {
     if (store.applied_coupon?.code) {
       await validateDiscount(store.applied_coupon.code, { silent: true })
     }
+    ensureValidOrderTypeForCurrentSite()
   }
 )
 
 const validateDiscount = async (code, opts = { silent: false }) => {
-  const silent = !!opts?.silent
   const site = siteStore.location?.site
 
   if (!site) {
-    temp_code.value = { status: 'error', detail: lang.value === 'en' ? 'Select a site first' : 'Selecciona una sede primero' }
+    temp_code.value = { status: 'error', detail: isEnglish.value ? 'Select a site first' : 'Selecciona una sede primero' }
     return
   }
 
@@ -886,20 +958,20 @@ const validateDiscount = async (code, opts = { silent: false }) => {
 
     const backendDetail = getErrorDetail(payload)
     if (!r.ok || backendDetail) {
-      temp_code.value = { status: 'invalid', detail: backendDetail || (lang.value === 'en' ? 'Invalid code' : 'Código no válido') }
+      temp_code.value = { status: 'invalid', detail: backendDetail || t('invalid_code') }
       store.removeCoupon()
       return
     }
 
     const coupon = pickCoupon(payload)
     if (!coupon) {
-      temp_code.value = { status: 'invalid', detail: lang.value === 'en' ? 'Invalid code' : 'Código no válido' }
+      temp_code.value = { status: 'invalid', detail: t('invalid_code') }
       store.removeCoupon()
       return
     }
 
     if (Array.isArray(coupon.sites) && !coupon.sites.some((s) => String(s.site_id) === String(site.site_id))) {
-      temp_code.value = { status: 'invalid_site', detail: lang.value === 'en' ? 'Not valid for this site' : 'No válido en esta sede' }
+      temp_code.value = { status: 'invalid_site', detail: t('coupon_invalid_site') }
       store.removeCoupon()
       return
     }
@@ -908,15 +980,14 @@ const validateDiscount = async (code, opts = { silent: false }) => {
     temp_code.value = {
       ...coupon,
       status: 'active',
-      discount_name: coupon.discount_name || coupon.name || 'Descuento'
+      discount_name: coupon.discount_name || coupon.name || (isEnglish.value ? 'Discount' : 'Descuento')
     }
 
-    // asegura switch ON si aplicó bien
     store.setCouponUi({ enabled: true, draft_code: coupon.code || finalCode })
   } catch (e) {
     console.error(e)
-    temp_code.value = { status: 'error', detail: lang.value === 'en' ? 'Connection error' : 'Error de conexión' }
-    if (!silent) store.removeCoupon()
+    temp_code.value = { status: 'error', detail: isEnglish.value ? 'Connection error' : 'Error de conexión' }
+    store.removeCoupon()
   } finally {
     isApplyingCoupon.value = false
   }
@@ -925,15 +996,15 @@ const validateDiscount = async (code, opts = { silent: false }) => {
 const clearCoupon = () => {
   temp_code.value = {}
   store.removeCoupon()
-  // deja switch prendido y el input editable (UX)
   store.setCouponUi({ enabled: true, draft_code: '' })
 }
 
 /* ================= Mount ================= */
 onMounted(async () => {
   initCountries()
+
   if (!user.user.phone_code) {
-    const defaultCode = lang.value === 'en' ? 'US' : 'CO'
+    const defaultCode = isEnglish.value ? 'US' : 'CO'
     user.user.phone_code = countries.value.find((c) => c.code === defaultCode)
   }
 
@@ -948,6 +1019,7 @@ onMounted(async () => {
 
 watch(lang, initCountries)
 </script>
+
 
 <style scoped>
 /* =========================================
