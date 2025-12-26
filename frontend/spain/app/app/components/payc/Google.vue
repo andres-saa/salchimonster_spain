@@ -217,7 +217,7 @@
               <div
                 class="address-card"
                 :class="{ 'has-address': user.user.address, 'no-address': !user.user.address }"
-                @click="openAddressModal"
+                @click="openAddressModal('click')"
               >
                 <div class="icon-box-addr">
                   <Icon name="mdi:map-marker" />
@@ -417,7 +417,6 @@ const generateUUID = () => {
     return v.toString(16)
   })
 }
-
 const apiFetch = async (url) => (await fetch(url)).json()
 
 const pickCoupon = (payload) => {
@@ -454,54 +453,6 @@ const isValidDeliveryCost = (v) => {
   return Number.isFinite(n) && n > 0
 }
 const normalizeDeliveryCost = (v) => (isValidDeliveryCost(v) ? Number(v) : null)
-
-const openPickupDialog = async () => {
-  await nextTick()
-  siteStore.setVisible('site_recoger', true)
-}
-
-// ✅ cuando cambie el tipo de orden a recoger / estoy aquí -> abre dialog automáticamente
-watch(
-  () => user.user.order_type?.id,
-  async (id) => {
-    const isPk = [2, 6].includes(Number(id))
-
-    if (isPk) {
-      if (!siteStore.location?.site?.site_id) {
-        openPickupDialog()
-      }
-
-      // para pickup: address debe ser la sede (no google)
-      user.user.site = siteStore.location?.site || user.user.site
-      user.user.address =
-        siteStore.location?.site?.site_address ||
-        siteStore.location?.site?.site_name ||
-        user.user.address
-
-      // limpiar datos google
-      user.user.lat = null
-      user.user.lng = null
-      user.user.place_id = null
-      user.user.site = siteStore.location?.site
-    } else {
-      siteStore.setVisible('site_recoger', false)
-    }
-  },
-  { immediate: true }
-)
-
-// ✅ si el usuario elige sede desde el dialog, reflejarlo en el user cuando está en pickup
-watch(
-  () => siteStore.location?.site?.site_id,
-  () => {
-    if (!isPickup.value) return
-    user.user.site = siteStore.location?.site
-    user.user.address =
-      siteStore.location?.site?.site_address ||
-      siteStore.location?.site?.site_name ||
-      ''
-  }
-)
 
 /* ================= i18n ================= */
 const lang = computed(() =>
@@ -587,43 +538,100 @@ const sessionToken = ref(null)
 const tempSiteData = ref(null)
 const addressInputRef = ref(null)
 
-const openAddressModal = () => {
+/* ✅ Auto-open del modal (para que “abra el modal”) */
+const autoOpenedOnce = ref(false)
+const dismissedOnce = ref(false)
+
+const needsAddressModal = computed(() => {
+  if (!isDelivery.value) return false
+  const hasAddr = !!(user.user.address || store.address_details?.formatted_address || user.user.site?.formatted_address)
+  const rawCost =
+    siteStore.location?.neigborhood?.delivery_price ??
+    store.address_details?.delivery_cost_cop ??
+    user.user.site?.delivery_cost_cop ??
+    null
+  const cost = normalizeDeliveryCost(rawCost)
+  // si no hay dirección o no hay costo válido -> debe abrir modal
+  return !hasAddr || cost == null
+})
+
+const focusAddressInput = async () => {
+  await nextTick()
+  await nextTick()
+  addressInputRef.value?.focus?.()
+}
+
+const openAddressModal = async (reason = 'auto') => {
+  // si pickup, no tiene sentido abrir modal google
+  if (isPickup.value) return
+
+  dismissedOnce.value = false
+
   addressQuery.value = ''
   tempSiteData.value = null
   dir_options.value = []
   see_sites.value = true
   if (!sessionToken.value) sessionToken.value = generateUUID()
+
+  await focusAddressInput()
+
+  if (reason === 'auto') autoOpenedOnce.value = true
 }
 
 const closeModal = () => {
   see_sites.value = false
   sessionToken.value = null
+
+  // ✅ si el usuario lo cerró manualmente, no lo re-abras en loop
+  if (autoOpenedOnce.value) dismissedOnce.value = true
 }
+
+/* ✅ abre automáticamente cuando estás en DELIVERY y falta dirección/costo */
+const maybeAutoOpenAddressModal = async () => {
+  if (isPickup.value) return
+  if (see_sites.value) return
+  if (isRedirecting.value) return
+  if (!needsAddressModal.value) {
+    // si ya está bien, permite que en el futuro vuelva a auto-abrir si se vuelve a dañar
+    dismissedOnce.value = false
+    return
+  }
+  // si ya lo auto-abrió y el usuario lo cerró, no lo abras en bucle
+  if (autoOpenedOnce.value && dismissedOnce.value) return
+  await openAddressModal('auto')
+}
+
+/* Debounce de búsqueda */
+const searchTimer = ref(null)
 
 const onSearchInput = async () => {
   tempSiteData.value = null
   showAddressSuggestions.value = true
 
-  if (!addressQuery.value.trim()) {
-    dir_options.value = []
-    return
-  }
+  if (searchTimer.value) clearTimeout(searchTimer.value)
 
-  const city = siteStore.location?.site?.city_name || ''
-  const params = new URLSearchParams({
-    input: addressQuery.value,
-    session_token: sessionToken.value,
-    language: lang.value,
-    city,
-    limit: '5'
-  })
+  searchTimer.value = setTimeout(async () => {
+    if (!addressQuery.value.trim()) {
+      dir_options.value = []
+      return
+    }
 
-  try {
-    const res = await (await fetch(`${uri_api_google}/es/places/autocomplete?${params}`)).json()
-    dir_options.value = (res.predictions || res).filter((p) => p?.place_id)
-  } catch (e) {
-    dir_options.value = []
-  }
+    const city = siteStore.location?.site?.city_name || ''
+    const params = new URLSearchParams({
+      input: addressQuery.value,
+      session_token: sessionToken.value,
+      language: lang.value,
+      city,
+      limit: '5'
+    })
+
+    try {
+      const res = await (await fetch(`${uri_api_google}/es/places/autocomplete?${params}`)).json()
+      dir_options.value = (res.predictions || res).filter((p) => p?.place_id)
+    } catch (e) {
+      dir_options.value = []
+    }
+  }, 180)
 }
 
 const clearSearch = () => {
@@ -646,13 +654,11 @@ const onAddressSelect = async (item) => {
     })
     const details = await (await fetch(`${uri_api_google}/es/places/coverage-details?${params}`)).json()
 
-    // ✅ Regla: delivery_cost_cop debe ser >0 si es DELIVERY
     const normalizedCost = normalizeDeliveryCost(details?.delivery_cost_cop)
 
     const inCoverageStrict =
       !details?.error &&
       !!details?.nearest?.in_coverage &&
-      // si es delivery, costo obligatorio (>0)
       (isDelivery.value ? normalizedCost != null : true)
 
     tempSiteData.value = {
@@ -688,7 +694,6 @@ const onAddressSelect = async (item) => {
 const confirmSelection = async () => {
   if (!tempSiteData.value?.in_coverage) return
 
-  // ✅ doble seguro: si es DELIVERY y el costo no es válido, no deja confirmar
   if (isDelivery.value && !isValidDeliveryCost(tempSiteData.value?.delivery_cost_cop)) {
     tempSiteData.value = {
       ...tempSiteData.value,
@@ -720,11 +725,9 @@ const applySiteSelection = (data) => {
   user.user.lng = data.lng
   user.user.place_id = data.place_id
 
-  // sitio real
   siteStore.location.site = data.nearest?.site || siteStore.location.site
   store.address_details = data
 
-  // ✅ Delivery fee: si es delivery, DEBE ser >0, si no: null (nunca 0)
   const normalized = isPickup.value ? 0 : normalizeDeliveryCost(data.delivery_cost_cop)
 
   if (!siteStore.location.neigborhood) {
@@ -746,6 +749,9 @@ const applySiteSelection = (data) => {
   }
 
   ensureValidOrderTypeForCurrentSite()
+
+  // ✅ al guardar una dirección válida, ya no es “dismissed”
+  dismissedOnce.value = false
 }
 
 const handleSiteChange = async (newData) => {
@@ -798,6 +804,60 @@ const handleSiteChange = async (newData) => {
     isRedirecting.value = false
   }
 }
+
+/* ================= Pickup Dialog ================= */
+const openPickupDialog = async () => {
+  await nextTick()
+  siteStore.setVisible('site_recoger', true)
+}
+
+// ✅ cuando cambie el tipo de orden a recoger / estoy aquí -> abre dialog automáticamente
+watch(
+  () => user.user.order_type?.id,
+  async (id) => {
+    const isPk = [2, 6].includes(Number(id))
+
+    // ✅ reset auto-open flags al cambiar tipo
+    autoOpenedOnce.value = false
+    dismissedOnce.value = false
+
+    if (isPk) {
+      if (!siteStore.location?.site?.site_id) {
+        openPickupDialog()
+      }
+
+      user.user.site = siteStore.location?.site || user.user.site
+      user.user.address =
+        siteStore.location?.site?.site_address ||
+        siteStore.location?.site?.site_name ||
+        user.user.address
+
+      user.user.lat = null
+      user.user.lng = null
+      user.user.place_id = null
+      user.user.site = siteStore.location?.site
+    } else {
+      siteStore.setVisible('site_recoger', false)
+      // ✅ si ahora es delivery y falta dirección/costo => abre modal
+      await nextTick()
+      await maybeAutoOpenAddressModal()
+    }
+  },
+  { immediate: true }
+)
+
+// ✅ si el usuario elige sede desde el dialog, reflejarlo en el user cuando está en pickup
+watch(
+  () => siteStore.location?.site?.site_id,
+  () => {
+    if (!isPickup.value) return
+    user.user.site = siteStore.location?.site
+    user.user.address =
+      siteStore.location?.site?.site_address ||
+      siteStore.location?.site?.site_name ||
+      ''
+  }
+)
 
 /* ================= Teléfono ================= */
 const phoneError = ref('')
@@ -945,7 +1005,6 @@ function syncDeliveryPrice() {
 
   const cost = normalizeDeliveryCost(raw)
 
-  // ✅ si no hay costo válido, queda null (nunca 0)
   siteStore.location.neigborhood.delivery_price = cost
   siteStore.current_delivery = cost
 }
@@ -955,9 +1014,10 @@ watch(
     user.user.order_type?.id,
     user.user.site?.delivery_cost_cop,
     store.address_details?.delivery_cost_cop,
-    siteStore.current_delivery
+    siteStore.current_delivery,
+    user.user.address
   ],
-  () => {
+  async () => {
     syncDeliveryPrice()
 
     const currentMethodId = user.user.payment_method_option?.id
@@ -965,6 +1025,10 @@ watch(
     if (!availableMethods.some((m) => m.id === currentMethodId)) {
       user.user.payment_method_option = null
     }
+
+    // ✅ si estás en delivery y falta dirección/costo => abre modal
+    await nextTick()
+    await maybeAutoOpenAddressModal()
   },
   { immediate: true }
 )
@@ -1105,6 +1169,10 @@ onMounted(async () => {
   } catch (e) {
     console.error('Error loading payment config', e)
   }
+
+  // ✅ al entrar a la página: si es delivery y falta dirección/costo, abre modal
+  await nextTick()
+  await maybeAutoOpenAddressModal()
 })
 
 watch(lang, initCountries)
