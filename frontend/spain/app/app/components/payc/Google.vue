@@ -57,7 +57,7 @@
 
             <div v-if="isValidating" class="loading-state">
               <Icon name="svg-spinners:90-ring-with-bg" size="32" />
-              <span>Verificando cobertura...</span>
+              <span>{{ t('checking_coverage') }}</span>
             </div>
 
             <div
@@ -228,13 +228,15 @@
                   <span v-else class="addr-placeholder">{{ t('address_placeholder') }}</span>
 
                   <div v-if="user.user.address" class="addr-meta">
+                    <!-- ✅ NUNCA "Gratis" en DELIVERY -->
                     <span class="badge badge-delivery">
                       {{
-                        siteStore?.location?.neigborhood?.delivery_price != null
+                        siteStore?.location?.neigborhood?.delivery_price > 0
                           ? formatCOP(siteStore.location.neigborhood.delivery_price)
-                          : (lang === 'en' ? 'Free Shipping' : 'Envío Gratis')
+                          : t('select_address_to_calculate')
                       }}
                     </span>
+
                     <span v-if="siteStore?.location?.site?.site_name" class="site-name">
                       • {{ lang === 'en' ? 'From' : 'Desde' }} {{ siteStore.location.site.site_name }}
                     </span>
@@ -444,10 +446,16 @@ const targetSiteName = ref('')
 
 /* ================= Pickup (RECIBIR / ESTOY AQUÍ) ================= */
 const isPickup = computed(() => [2, 6].includes(Number(user.user.order_type?.id)))
+const isDelivery = computed(() => !isPickup.value)
+
+/* ✅ Regla dura: delivery_cost_cop debe ser > 0 si es DELIVERY */
+const isValidDeliveryCost = (v) => {
+  const n = Number(v)
+  return Number.isFinite(n) && n > 0
+}
+const normalizeDeliveryCost = (v) => (isValidDeliveryCost(v) ? Number(v) : null)
 
 const openPickupDialog = async () => {
-  // tu dialog ya está montado en App y escucha: store.visibles.site_recoger
-  // (y NO usamos el modal google)
   await nextTick()
   siteStore.setVisible('site_recoger', true)
 }
@@ -459,25 +467,23 @@ watch(
     const isPk = [2, 6].includes(Number(id))
 
     if (isPk) {
-      // si no hay sede seleccionada, o si quieres forzar siempre, deja este if como true
       if (!siteStore.location?.site?.site_id) {
         openPickupDialog()
-      } else {
-        // igual lo puedes abrir siempre si prefieres:
-        // openPickupDialog()
       }
 
       // para pickup: address debe ser la sede (no google)
       user.user.site = siteStore.location?.site || user.user.site
-      user.user.address = siteStore.location?.site?.site_address || siteStore.location?.site?.site_name || user.user.address
+      user.user.address =
+        siteStore.location?.site?.site_address ||
+        siteStore.location?.site?.site_name ||
+        user.user.address
 
-      // limpiar datos google si quieres evitar mezclas
+      // limpiar datos google
       user.user.lat = null
       user.user.lng = null
       user.user.place_id = null
       user.user.site = siteStore.location?.site
     } else {
-      // si vuelven a delivery, no mostrar dialog de recoger
       siteStore.setVisible('site_recoger', false)
     }
   },
@@ -490,7 +496,10 @@ watch(
   () => {
     if (!isPickup.value) return
     user.user.site = siteStore.location?.site
-    user.user.address = siteStore.location?.site?.site_address || siteStore.location?.site?.site_name || ''
+    user.user.address =
+      siteStore.location?.site?.site_address ||
+      siteStore.location?.site?.site_name ||
+      ''
   }
 )
 
@@ -523,7 +532,9 @@ const DICT = {
     additional_notes: 'Ej: Timbre dañado, dejar en portería...',
     search_country_or_code: 'Buscar país...',
     address: 'Dirección de Entrega',
-    code_placeholder: 'Ingresa el código'
+    code_placeholder: 'Ingresa el código',
+    checking_coverage: 'Verificando cobertura...',
+    select_address_to_calculate: 'Selecciona dirección'
   },
   en: {
     finalize_purchase: 'Checkout',
@@ -548,19 +559,23 @@ const DICT = {
     additional_notes: 'Ex: Doorbell broken...',
     search_country_or_code: 'Search country...',
     address: 'Delivery Address',
-    code_placeholder: 'Enter code'
+    code_placeholder: 'Enter code',
+    checking_coverage: 'Checking coverage...',
+    select_address_to_calculate: 'Select address'
   }
 }
 const t = (key) => DICT[lang.value]?.[key] || DICT.es[key] || key
 
-const formatCOP = (v) =>
-  v === 0
-    ? 'Gratis'
-    : new Intl.NumberFormat(lang.value === 'en' ? 'en-CO' : 'es-CO', {
-        style: 'currency',
-        currency: 'COP',
-        maximumFractionDigits: 0
-      }).format(v)
+/* ✅ Si llega 0 en delivery, NO se muestra como “Gratis”: queda “--” */
+const formatCOP = (v) => {
+  const n = Number(v)
+  if (!Number.isFinite(n) || n <= 0) return '--'
+  return new Intl.NumberFormat(lang.value === 'en' ? 'en-CO' : 'es-CO', {
+    style: 'currency',
+    currency: 'COP',
+    maximumFractionDigits: 0
+  }).format(n)
+}
 
 /* ================= Modal Google ================= */
 const see_sites = ref(false)
@@ -631,11 +646,31 @@ const onAddressSelect = async (item) => {
     })
     const details = await (await fetch(`${uri_api_google}/es/places/coverage-details?${params}`)).json()
 
+    // ✅ Regla: delivery_cost_cop debe ser >0 si es DELIVERY
+    const normalizedCost = normalizeDeliveryCost(details?.delivery_cost_cop)
+
+    const inCoverageStrict =
+      !details?.error &&
+      !!details?.nearest?.in_coverage &&
+      // si es delivery, costo obligatorio (>0)
+      (isDelivery.value ? normalizedCost != null : true)
+
     tempSiteData.value = {
       ...details,
+      delivery_cost_cop: isDelivery.value ? normalizedCost : (details?.delivery_cost_cop ?? null),
       formatted_address: details.formatted_address || item.description,
       status: 'checked',
-      in_coverage: !details.error && details.nearest?.in_coverage
+      in_coverage: inCoverageStrict,
+      error:
+        inCoverageStrict
+          ? null
+          : (details?.error ||
+              (isDelivery.value && normalizedCost == null
+                ? {
+                    message_es: 'No pudimos calcular el costo de domicilio para esta dirección. Elige otra dirección.',
+                    message_en: 'We could not calculate the delivery fee for this address. Please choose another one.'
+                  }
+                : null))
     }
   } catch (e) {
     tempSiteData.value = {
@@ -652,6 +687,19 @@ const onAddressSelect = async (item) => {
 /* ================= Confirm / Redirect (GOOGLE DELIVERY) ================= */
 const confirmSelection = async () => {
   if (!tempSiteData.value?.in_coverage) return
+
+  // ✅ doble seguro: si es DELIVERY y el costo no es válido, no deja confirmar
+  if (isDelivery.value && !isValidDeliveryCost(tempSiteData.value?.delivery_cost_cop)) {
+    tempSiteData.value = {
+      ...tempSiteData.value,
+      in_coverage: false,
+      error: {
+        message_es: 'Costo de domicilio inválido (0). Elige otra dirección.',
+        message_en: 'Invalid delivery fee (0). Please choose another address.'
+      }
+    }
+    return
+  }
 
   const currentSiteId = siteStore.location?.site?.site_id
   const newSiteId = tempSiteData.value.nearest?.site?.site_id
@@ -676,8 +724,25 @@ const applySiteSelection = (data) => {
   siteStore.location.site = data.nearest?.site || siteStore.location.site
   store.address_details = data
 
-  if (data.delivery_cost_cop != null) {
-    siteStore.location.neigborhood.delivery_price = data.delivery_cost_cop
+  // ✅ Delivery fee: si es delivery, DEBE ser >0, si no: null (nunca 0)
+  const normalized = isPickup.value ? 0 : normalizeDeliveryCost(data.delivery_cost_cop)
+
+  if (!siteStore.location.neigborhood) {
+    siteStore.location.neigborhood = {
+      name: '',
+      delivery_price: null,
+      neighborhood_id: null,
+      id: null,
+      site_id: null
+    }
+  }
+
+  if (isPickup.value) {
+    siteStore.location.neigborhood.delivery_price = 0
+    siteStore.current_delivery = 0
+  } else {
+    siteStore.location.neigborhood.delivery_price = normalized
+    siteStore.current_delivery = normalized
   }
 
   ensureValidOrderTypeForCurrentSite()
@@ -851,32 +916,36 @@ const ensureValidOrderTypeForCurrentSite = () => {
   user.user.order_type = preferred || list[0]
 }
 
+/* ✅ Sync: delivery nunca queda en 0 */
 function syncDeliveryPrice() {
-  const isPickupLocal = [2, 6].includes(user.user.order_type?.id)
+  const pickupLocal = [2, 6].includes(Number(user.user.order_type?.id))
 
   if (!siteStore.location.neigborhood) {
     siteStore.location.neigborhood = {
       name: '',
-      delivery_price: 0,
+      delivery_price: null,
       neighborhood_id: null,
       id: null,
       site_id: null
     }
   }
 
-  if (isPickupLocal) {
+  if (pickupLocal) {
     siteStore.location.neigborhood.delivery_price = 0
     siteStore.current_delivery = 0
     return
   }
 
-  const cost =
+  const raw =
     user.user.site?.delivery_cost_cop ??
     store.address_details?.delivery_cost_cop ??
     siteStore.current_delivery ??
     siteStore.location.neigborhood.delivery_price ??
-    0
+    null
 
+  const cost = normalizeDeliveryCost(raw)
+
+  // ✅ si no hay costo válido, queda null (nunca 0)
   siteStore.location.neigborhood.delivery_price = cost
   siteStore.current_delivery = cost
 }
@@ -957,7 +1026,10 @@ const validateDiscount = async (code, opts = { silent: false }) => {
   const site = siteStore.location?.site
 
   if (!site) {
-    temp_code.value = { status: 'error', detail: lang.value === 'en' ? 'Select a site first' : 'Selecciona una sede primero' }
+    temp_code.value = {
+      status: 'error',
+      detail: lang.value === 'en' ? 'Select a site first' : 'Selecciona una sede primero'
+    }
     return
   }
 
@@ -971,7 +1043,10 @@ const validateDiscount = async (code, opts = { silent: false }) => {
 
     const backendDetail = getErrorDetail(payload)
     if (!r.ok || backendDetail) {
-      temp_code.value = { status: 'invalid', detail: backendDetail || (lang.value === 'en' ? 'Invalid code' : 'Código no válido') }
+      temp_code.value = {
+        status: 'invalid',
+        detail: backendDetail || (lang.value === 'en' ? 'Invalid code' : 'Código no válido')
+      }
       store.removeCoupon()
       return
     }
@@ -984,7 +1059,10 @@ const validateDiscount = async (code, opts = { silent: false }) => {
     }
 
     if (Array.isArray(coupon.sites) && !coupon.sites.some((s) => String(s.site_id) === String(site.site_id))) {
-      temp_code.value = { status: 'invalid_site', detail: lang.value === 'en' ? 'Not valid for this site' : 'No válido en esta sede' }
+      temp_code.value = {
+        status: 'invalid_site',
+        detail: lang.value === 'en' ? 'Not valid for this site' : 'No válido en esta sede'
+      }
       store.removeCoupon()
       return
     }
