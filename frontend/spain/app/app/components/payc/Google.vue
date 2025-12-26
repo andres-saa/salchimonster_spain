@@ -604,7 +604,7 @@ const onSearchInput = async () => {
   })
 
   try {
-    const res = await (await fetch(`${uri_api_google}/places/autocomplete?${params}`)).json()
+    const res = await (await fetch(`${uri_api_google}/es/places/autocomplete?${params}`)).json()
     dir_options.value = (res.predictions || res).filter((p) => p?.place_id)
   } catch (e) {
     dir_options.value = []
@@ -629,7 +629,7 @@ const onAddressSelect = async (item) => {
       session_token: sessionToken.value,
       language: lang.value
     })
-    const details = await (await fetch(`${uri_api_google}/places/coverage-details?${params}`)).json()
+    const details = await (await fetch(`${uri_api_google}/es/places/coverage-details?${params}`)).json()
 
     tempSiteData.value = {
       ...details,
