@@ -57,7 +57,7 @@ export const useSitesStore = defineStore('site-d3sddfdfs422', () => {
 
   // ───────────── PERSISTENCIA MANUAL (SSR SAFE) ─────────────
   
-  const getStorageKey = (siteId) => `site-data-${siteId}`
+  const getStorageKey = (siteId) => `site-data-2-${siteId}`
 
   // Inicializar storage solo en cliente
   const initStorage = () => {
