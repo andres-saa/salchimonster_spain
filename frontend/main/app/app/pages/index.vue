@@ -1237,7 +1237,7 @@ async function dispatchToSite(manualStore, orderTypeObj, extra = { mode: 'simple
     const subdomain = targetStore.subdomain || 'www'
     const isDev = window.location.hostname.includes('localhost')
     const protocol = window.location.protocol
-    const baseUrl = isDev ? `${protocol}//${subdomain}.localhost:3000` : `https://${subdomain}.${MAIN_DOMAIN}`
+    const baseUrl = isDev ? `${protocol}//${subdomain}.localhost:3002` : `https://${subdomain}.${MAIN_DOMAIN}`
 
     const params = new URLSearchParams()
     params.append('hash', hash)

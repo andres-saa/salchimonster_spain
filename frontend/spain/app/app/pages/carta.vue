@@ -105,7 +105,7 @@ const normalize = (s) => String(s || '').toLowerCase().normalize('NFD').replace(
 // --- LÓGICA ESPAÑA ---
 const activeMenu = computed(() => {
   if (!menuData.value.length) return null
-  return menuData.value.find(m => m.id === 'nj-general' || normalize(m.name).includes('New Jersey')) || null
+  return menuData.value.find(m => m.id === 'es-general' || normalize(m.name).includes('New Jersey')) || null
 })
 
 const activeCards = computed(() => {

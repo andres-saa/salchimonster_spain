@@ -87,7 +87,7 @@ const menus = computed(() => {
     { label: t.carta || 'Carta', to: `/carta`, icon: 'mdi:food-fork-drink' },
     { label: t.rastrear || 'Rastrear', to: `/rastrear`, icon: 'mdi:map-clock' },
     { label: t.ayuda || 'Ayuda', to: `/pqr`, icon: 'mdi:lifebuoy' },
-    { label: t.fraquicias || 'Franquicias', to: `/franquicias`, icon: 'mdi:lifebuoy' },
+    // { label: t.fraquicias || 'Franquicias', to: `/franquicias`, icon: 'mdi:lifebuoy' },
     { label: t.colaboraciones || 'Colaboraciones', to: `/colaboraciones`, icon: 'mdi:handshake' },
     { label: t.sonando || 'Sonando', to: `/sonando`, icon: 'mdi:music-circle' }
   ]
