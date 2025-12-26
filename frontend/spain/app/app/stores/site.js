@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, watch } from 'vue'
 import { URI } from '../service/conection'
 
-export const useSitesStore = defineStore('site-d3sddfs422', () => {
+export const useSitesStore = defineStore('site-d3sddfdfs422', () => {
   
   // 1. HELPER
   const emptyNeighborhood = () => ({
